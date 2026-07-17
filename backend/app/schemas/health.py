@@ -11,3 +11,10 @@ class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     service: str
     version: str
+
+
+class ReadinessResponse(BaseModel):
+    """Dependency readiness response."""
+
+    status: Literal["ready", "degraded"]
+    checks: dict[str, Literal["ok", "unavailable"]]

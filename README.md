@@ -504,7 +504,7 @@ Status: Foundation Ready
 - [x] Architecture design
 - [x] FastAPI backend
 - [x] Docker setup
-- [ ] OpenRouter integration
+- [x] OpenRouter integration
 
 
 ---
@@ -565,8 +565,9 @@ docker compose up --build
 ```
 
 The API is available at `http://localhost:8000`, interactive documentation at
-`http://localhost:8000/docs`, and liveness at
-`http://localhost:8000/api/v1/health`.
+`http://localhost:8000/docs`, liveness at
+`http://localhost:8000/api/v1/health`, and infrastructure readiness at
+`http://localhost:8000/api/v1/ready`.
 
 For backend development without Docker:
 

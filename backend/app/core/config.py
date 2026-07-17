@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
     openrouter_api_key: SecretStr | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
     database_url: str = "postgresql+asyncpg://norma:norma@localhost:5432/norma"
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333

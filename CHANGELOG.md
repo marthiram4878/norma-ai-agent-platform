@@ -12,6 +12,7 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - Research Brief async workflow (retrieve → research → persist) alongside Launch Strategy.
 - Assistant conversation list + New chat; mobile navigation drawer.
 - Document ingest status badges in Knowledge views.
+- Settings view (profile / workspace / sign out), onboarding empty state when no project/space, markdown rendering for artifacts and assistant answers, paperclip upload-to-knowledge shortcut.
 
 ### Documentation
 

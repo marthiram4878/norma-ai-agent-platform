@@ -8,6 +8,8 @@ import {
 } from "./components/ChatWorkspace";
 import { KnowledgePanel } from "./components/KnowledgePanel";
 import { KnowledgeWorkspace } from "./components/KnowledgeWorkspace";
+import { OnboardingEmptyState } from "./components/OnboardingEmptyState";
+import { SettingsWorkspace } from "./components/SettingsWorkspace";
 import { Sidebar, type AppView } from "./components/Sidebar";
 import {
   WorkflowsWorkspace,
@@ -301,7 +303,10 @@ export function App() {
   }, [documents, resolvedWorkspaceId, resolvedSpaceId, refreshDocuments]);
 
   async function handleUpload(file: File) {
-    if (!resolvedWorkspaceId || !resolvedSpaceId) return;
+    if (!resolvedWorkspaceId || !resolvedSpaceId) {
+      setError("Create a project and knowledge space first.");
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
@@ -340,7 +345,10 @@ export function App() {
   }
 
   async function handleSend(question: string) {
-    if (!resolvedWorkspaceId || !resolvedSpaceId) return;
+    if (!resolvedWorkspaceId || !resolvedSpaceId) {
+      setError("Create a project and knowledge space first.");
+      return;
+    }
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -392,7 +400,10 @@ export function App() {
     productName: string | undefined,
     workflowKind: WorkflowKind,
   ) {
-    if (!resolvedWorkspaceId) return;
+    if (!resolvedWorkspaceId || !resolvedSpaceId) {
+      setError("Create a project and knowledge space first.");
+      return;
+    }
     setEnqueueing(true);
     setError(null);
     try {
@@ -510,6 +521,8 @@ export function App() {
     );
   }
 
+  const needsOnboarding = !activeProject || !resolvedSpaceId;
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#080c14] text-slate-200">
       <Sidebar
@@ -538,52 +551,72 @@ export function App() {
         onCreateSpace={handleCreateSpace}
         onLogout={() => void handleLogout()}
       />
-      {view === "assistant" && (
+      {view === "settings" ? (
+        <SettingsWorkspace
+          user={session.user}
+          workspace={workspace}
+          onLogout={() => void handleLogout()}
+          onOpenNav={() => setMobileNavOpen(true)}
+        />
+      ) : needsOnboarding ? (
+        <OnboardingEmptyState
+          hasProject={Boolean(activeProject)}
+          onCreateProject={handleCreateProject}
+          onCreateSpace={handleCreateSpace}
+          onOpenNav={() => setMobileNavOpen(true)}
+        />
+      ) : (
         <>
-          <ChatWorkspace
-            messages={messages}
-            thinking={thinking}
-            documentsCount={documents.length}
-            conversations={conversations}
-            conversationId={conversationId}
-            onSend={handleSend}
-            onOpenNav={() => setMobileNavOpen(true)}
-            onNewChat={handleNewChat}
-            onSelectConversation={(id) => void handleSelectConversation(id)}
-            onNavigateKnowledge={() => setView("knowledge")}
-          />
-          <KnowledgePanel
-            documents={documents}
-            loading={loadingDocuments}
-            uploading={uploading}
-            onUpload={handleUpload}
-            onDelete={handleDelete}
-          />
+          {view === "assistant" && (
+            <>
+              <ChatWorkspace
+                messages={messages}
+                thinking={thinking}
+                documentsCount={documents.length}
+                conversations={conversations}
+                conversationId={conversationId}
+                uploading={uploading}
+                onSend={handleSend}
+                onUpload={handleUpload}
+                onOpenNav={() => setMobileNavOpen(true)}
+                onNewChat={handleNewChat}
+                onSelectConversation={(id) => void handleSelectConversation(id)}
+                onNavigateKnowledge={() => setView("knowledge")}
+              />
+              <KnowledgePanel
+                documents={documents}
+                loading={loadingDocuments}
+                uploading={uploading}
+                onUpload={handleUpload}
+                onDelete={handleDelete}
+              />
+            </>
+          )}
+          {view === "workflows" && (
+            <WorkflowsWorkspace
+              runs={workflowRuns}
+              activeRun={launchRun}
+              enqueueing={enqueueing}
+              onEnqueue={handleEnqueue}
+              onSelectRun={handleSelectRun}
+              onOpenNav={() => setMobileNavOpen(true)}
+            />
+          )}
+          {view === "knowledge" && resolvedSpaceId && (
+            <KnowledgeWorkspace
+              workspaceId={resolvedWorkspaceId}
+              spaceId={resolvedSpaceId}
+              documents={documents}
+              loading={loadingDocuments}
+              uploading={uploading}
+              onUpload={handleUpload}
+              onDelete={handleDelete}
+              onRefreshDocuments={refreshDocuments}
+              onError={(message) => setError(message)}
+              onOpenNav={() => setMobileNavOpen(true)}
+            />
+          )}
         </>
-      )}
-      {view === "workflows" && (
-        <WorkflowsWorkspace
-          runs={workflowRuns}
-          activeRun={launchRun}
-          enqueueing={enqueueing}
-          onEnqueue={handleEnqueue}
-          onSelectRun={handleSelectRun}
-          onOpenNav={() => setMobileNavOpen(true)}
-        />
-      )}
-      {view === "knowledge" && resolvedSpaceId && (
-        <KnowledgeWorkspace
-          workspaceId={resolvedWorkspaceId}
-          spaceId={resolvedSpaceId}
-          documents={documents}
-          loading={loadingDocuments}
-          uploading={uploading}
-          onUpload={handleUpload}
-          onDelete={handleDelete}
-          onRefreshDocuments={refreshDocuments}
-          onError={(message) => setError(message)}
-          onOpenNav={() => setMobileNavOpen(true)}
-        />
       )}
       {error && (
         <div className="fixed bottom-5 left-1/2 z-50 flex max-w-md -translate-x-1/2 items-center gap-3 rounded-xl border border-red-400/15 bg-[#1a1118] px-4 py-3 text-xs text-red-200 shadow-2xl shadow-black/50">

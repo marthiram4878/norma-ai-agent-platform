@@ -13,10 +13,10 @@ import {
 
 import type { AuthUser, AuthWorkspace, Project } from "../lib/api";
 
-export type AppView = "assistant" | "workflows" | "knowledge";
+export type AppView = "assistant" | "workflows" | "knowledge" | "settings";
 
 const navigation: {
-  id: AppView;
+  id: Exclude<AppView, "settings">;
   label: string;
   icon: typeof Bot;
 }[] = [
@@ -294,9 +294,12 @@ export function Sidebar({
         </div>
         <button
           type="button"
-          disabled
-          title="Soon"
-          className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-700"
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+            activeView === "settings"
+              ? "bg-cyan-400/8 text-cyan-200"
+              : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300"
+          }`}
+          onClick={() => navigate("settings")}
         >
           <Settings className="size-4" />
           Settings

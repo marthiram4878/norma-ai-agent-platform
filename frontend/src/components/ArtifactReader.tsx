@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Maximize2, Minimize2, X } from "lucide-react";
 
+import { MarkdownContent } from "./MarkdownContent";
+
 interface ArtifactReaderProps {
   title: string;
   kind?: string;
@@ -81,9 +83,10 @@ export function ArtifactReader({
         )}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8">
-        <pre className="mx-auto max-w-3xl whitespace-pre-wrap font-sans text-[13px] leading-7 text-slate-300">
-          {content || "—"}
-        </pre>
+        <MarkdownContent
+          className="mx-auto max-w-3xl"
+          content={content || ""}
+        />
       </div>
     </div>
   );

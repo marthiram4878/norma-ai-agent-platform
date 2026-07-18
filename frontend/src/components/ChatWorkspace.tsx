@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import {
   ArrowUp,
   Bot,
@@ -14,6 +14,8 @@ import {
 
 import type { AssistantSource, ConversationSummary } from "../lib/api";
 
+import { MarkdownContent } from "./MarkdownContent";
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -28,7 +30,9 @@ interface ChatWorkspaceProps {
   documentsCount: number;
   conversations: ConversationSummary[];
   conversationId: string | null;
+  uploading?: boolean;
   onSend: (question: string) => Promise<void>;
+  onUpload: (file: File) => Promise<void>;
   onOpenNav: () => void;
   onNewChat: () => void;
   onSelectConversation: (conversationId: string) => void;
@@ -53,13 +57,16 @@ export function ChatWorkspace({
   documentsCount,
   conversations,
   conversationId,
+  uploading = false,
   onSend,
+  onUpload,
   onOpenNav,
   onNewChat,
   onSelectConversation,
   onNavigateKnowledge,
 }: ChatWorkspaceProps) {
   const [question, setQuestion] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -198,9 +205,13 @@ export function ChatWorkspace({
                         : "min-w-0 pt-1"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap text-[13px] leading-6">
-                      {message.content}
-                    </p>
+                    {message.role === "assistant" ? (
+                      <MarkdownContent content={message.content} />
+                    ) : (
+                      <p className="whitespace-pre-wrap text-[13px] leading-6">
+                        {message.content}
+                      </p>
+                    )}
                     {message.sources && message.sources.length > 0 && (
                       <div className="mt-4 border-t border-white/7 pt-3">
                         <p className="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-600">
@@ -264,13 +275,30 @@ export function ChatWorkspace({
               }}
             />
             <div className="flex items-center px-1 pb-0.5">
+              <input
+                ref={fileInputRef}
+                className="hidden"
+                type="file"
+                accept=".pdf,.docx,.md,.markdown,.txt"
+                disabled={uploading || thinking}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void onUpload(file);
+                  event.target.value = "";
+                }}
+              />
               <button
                 type="button"
-                disabled
-                title="Soon"
-                className="grid size-8 place-items-center rounded-lg text-slate-700"
+                title="Upload to knowledge"
+                disabled={uploading || thinking}
+                className="grid size-8 place-items-center rounded-lg text-slate-500 transition hover:bg-white/5 hover:text-slate-300 disabled:cursor-not-allowed disabled:text-slate-700"
+                onClick={() => fileInputRef.current?.click()}
               >
-                <Paperclip className="size-4" />
+                {uploading ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <Paperclip className="size-4" />
+                )}
               </button>
               <span className="ml-1 text-[10px] text-slate-700">
                 Enter to send · Shift + Enter for new line

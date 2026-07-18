@@ -26,16 +26,46 @@ remembers context, and helps you execute complex tasks.**
 
 ---
 
-Knowledge is scattered across documents, chats, drives, and repos. **Norma AI** is
-the intelligent layer between people and that knowledge: **RAG + multi-agent
-workflows + long-term memory**, scoped by workspace, project, and knowledge space.
+## The problem
 
-> Humans define goals. AI accelerates execution.
+Teams drown in scattered context: PDFs, Notion pages, GitHub READMEs, strategy
+notes, and chat threads. Searching folders is slow. Pasting everything into a
+generic chatbot is worse — answers are ungrounded, context leaks across projects,
+and nothing turns research into a reusable pack you can ship from.
+
+**Norma AI** is built for that gap: an **agentic Knowledge OS** where your
+documents become a private, workspace-scoped brain — and agents help you **ask,
+research, and execute**, not only chat.
+
+---
+
+## What Norma does (and why it exists)
+
+Norma is not a single chatbot. It is a small operating layer around knowledge:
+
+1. **Ingest** — upload files or import from Notion / GitHub into a knowledge space  
+2. **Index** — chunk, embed (BGE-M3), store in Qdrant with workspace/space isolation  
+3. **Ask** — RAG Assistant retrieves evidence and answers with source chips  
+4. **Act** — multi-agent workflows (Launch Strategy, Research Brief) produce
+   markdown artifacts and write them back into knowledge  
+5. **Remember** — conversation threads + vectorized memory notes for later runs  
+
+> Humans define goals. AI accelerates execution — grounded in *your* space.
 
 ```text
-Register → upload / Notion / GitHub → ask Assistant → run Launch Strategy
+Register → upload / Notion / GitHub → ask Assistant → run a workflow
          → inspect artifacts → knowledge grows → ask again
 ```
+
+---
+
+## Who it is for
+
+| Audience | How Norma helps |
+|-|-|
+| **Founders / PMs** | Turn a brief into a Launch Strategy pack (research → roadmap → PRD → content) |
+| **Engineers** | Ground answers in repo docs and imported GitHub markdown — with citations |
+| **Small teams** | Keep client or product knowledge isolated per workspace / project / space |
 
 ---
 
@@ -49,6 +79,40 @@ Register → upload / Notion / GitHub → ask Assistant → run Launch Strategy
 | **Auth & tenancy** | Email/password, HttpOnly JWT cookies, workspace membership, projects & spaces |
 
 Deep dives: [agents](docs/agents.md) · [RAG](docs/rag.md) · [memory](docs/memory.md) · [API](docs/api.md)
+
+---
+
+## Product screenshots
+
+<p align="center">
+  <img
+    src="docs/images/assistant-workspace.png"
+    alt="Norma AI — Knowledge Assistant with knowledge base panel"
+    width="100%"
+  />
+  <br/>
+  <em>Assistant — ask questions grounded in the active project space; documents index on the right.</em>
+</p>
+
+<p align="center">
+  <img
+    src="docs/images/workflows-launch-strategy.png"
+    alt="Norma AI — Launch Strategy workflow with artifacts"
+    width="100%"
+  />
+  <br/>
+  <em>Workflows — Launch Strategy / Research Brief run history, artifacts, and markdown pack reader.</em>
+</p>
+
+<p align="center">
+  <img
+    src="docs/images/knowledge-github.png"
+    alt="Norma AI — Knowledge base with GitHub import"
+    width="100%"
+  />
+  <br/>
+  <em>Knowledge — upload files or connect GitHub / Notion and import into the space.</em>
+</p>
 
 ---
 

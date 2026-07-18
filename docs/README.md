@@ -14,6 +14,7 @@ dive into the subsystem you are changing.
 | [development.md](development.md) | Local backend/frontend workflow |
 | [roadmap.md](roadmap.md) | Phased product roadmap |
 | [walkthrough.md](walkthrough.md) | End-to-end product demo path |
+| [images/](images/) | Product screenshots used in the root README |
 
 Community / project meta:
 

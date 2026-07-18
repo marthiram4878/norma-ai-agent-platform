@@ -72,6 +72,19 @@ routes require workspace membership (missing membership → **404**).
 
 Requires `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` / `NOTION_REDIRECT_URI`.
 
+## Integrations — GitHub
+
+| Method | Path | Notes |
+|-|-|-|
+| GET | `/integrations/github/authorize` | `workspace_id`, `space_id` → authorize URL |
+| GET | `/integrations/github/callback` | OAuth redirect (sets connection, redirects to frontend) |
+| GET | `/integrations/github/status` | Connected flag + GitHub login |
+| DELETE | `/integrations/github` | Disconnect |
+| GET | `/integrations/github/repos` | Repos visible to the linked account |
+| POST | `/integrations/github/import` | Import README + markdown → knowledge ingest **202** |
+
+Requires `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_REDIRECT_URI`.
+
 ## Conventions
 
 - Tenancy fields: `workspace_id`, often `space_id`  

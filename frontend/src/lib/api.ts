@@ -269,6 +269,70 @@ export function importNotionPages(payload: {
   });
 }
 
+export interface GitHubStatus {
+  connected: boolean;
+  login: string | null;
+  user_id: string | null;
+}
+
+export interface GitHubRepo {
+  id: number;
+  full_name: string;
+  private: boolean;
+  default_branch: string;
+}
+
+export interface GitHubImportItem {
+  repo_full_name: string;
+  path: string | null;
+  document_id: string | null;
+  filename: string | null;
+  status: string;
+  error: string | null;
+}
+
+export function getGitHubAuthorizeUrl(
+  workspaceId: string,
+  spaceId: string,
+): Promise<{ authorize_url: string }> {
+  const query = new URLSearchParams({
+    workspace_id: workspaceId,
+    space_id: spaceId,
+  });
+  return request(`/integrations/github/authorize?${query}`);
+}
+
+export function getGitHubStatus(workspaceId: string): Promise<GitHubStatus> {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return request(`/integrations/github/status?${query}`);
+}
+
+export function disconnectGitHub(workspaceId: string): Promise<void> {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return request(`/integrations/github?${query}`, { method: "DELETE" });
+}
+
+export function listGitHubRepos(workspaceId: string): Promise<GitHubRepo[]> {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return request(`/integrations/github/repos?${query}`);
+}
+
+export function importGitHubRepos(payload: {
+  workspaceId: string;
+  spaceId: string;
+  repoFullNames: string[];
+}): Promise<{ items: GitHubImportItem[] }> {
+  return request("/integrations/github/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      workspace_id: payload.workspaceId,
+      space_id: payload.spaceId,
+      repo_full_names: payload.repoFullNames,
+    }),
+  });
+}
+
 export function uploadDocument(
   workspaceId: string,
   file: File,

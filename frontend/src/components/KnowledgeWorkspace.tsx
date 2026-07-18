@@ -10,6 +10,7 @@ import {
 import type { KnowledgeDocument } from "../lib/api";
 import { DocumentStatusBadge } from "../lib/documentStatus";
 
+import { GitHubImportPanel } from "./GitHubImportPanel";
 import { NotionImportPanel } from "./NotionImportPanel";
 
 interface KnowledgeWorkspaceProps {
@@ -96,6 +97,13 @@ export function KnowledgeWorkspace({
           </label>
 
           <NotionImportPanel
+            workspaceId={workspaceId}
+            spaceId={spaceId}
+            onImported={onRefreshDocuments}
+            onError={onError}
+          />
+
+          <GitHubImportPanel
             workspaceId={workspaceId}
             spaceId={spaceId}
             onImported={onRefreshDocuments}

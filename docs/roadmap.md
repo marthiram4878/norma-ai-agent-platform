@@ -43,7 +43,7 @@ the main branch.
 
 - [ ] Slack integration
 - [x] Notion integration (OAuth + page import into knowledge spaces)
-- [ ] GitHub integration
+- [x] GitHub integration (OAuth + README/markdown import into knowledge spaces)
 - [ ] Google Drive integration
 - [ ] CRM integrations
 

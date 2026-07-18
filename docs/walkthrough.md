@@ -16,7 +16,7 @@ Assistant / Workflows / Knowledge.
 ## 2. Add knowledge
 
 1. Open **Knowledge**.
-2. Upload a PDF, DOCX, Markdown, or TXT (or connect Notion and import pages).
+2. Upload a PDF, DOCX, Markdown, or TXT (or connect Notion / GitHub and import).
 3. Wait until the document status badge shows **completed** (pending → completed).
 
 Expected: the document appears in the list with chunk count; Assistant can

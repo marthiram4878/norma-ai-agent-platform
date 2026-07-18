@@ -133,7 +133,14 @@ export function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("notion") === "connected" || params.get("notion") === "error") {
+    const notion = params.get("notion");
+    const github = params.get("github");
+    if (
+      notion === "connected" ||
+      notion === "error" ||
+      github === "connected" ||
+      github === "error"
+    ) {
       setView("knowledge");
     }
   }, []);

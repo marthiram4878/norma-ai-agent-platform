@@ -5,14 +5,13 @@
 ## The AI Operating System for Knowledge and Execution
 
 **An autonomous AI workspace that understands your information,  
-remembers context and helps you execute complex tasks.**
+remembers context, and helps you execute complex tasks.**
 
 <br/>
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-Production-green.svg)]()
 [![LangGraph](https://img.shields.io/badge/LangGraph-Agentic_AI-orange.svg)]()
-[![LangChain](https://img.shields.io/badge/LangChain-Framework-black.svg)]()
 [![Qdrant](https://img.shields.io/badge/Qdrant-Vector_DB-red.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)]()
@@ -21,662 +20,162 @@ remembers context and helps you execute complex tasks.**
 
 **Transform scattered information into structured knowledge and autonomous action.**
 
-</div>
+[Documentation](docs/README.md) · [Roadmap](docs/roadmap.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
+</div>
 
 ---
 
 # What is Norma AI?
 
-Modern people and companies are drowning in information.
-
-Knowledge is spread across:
-
-- Documents
-- Emails
-- Slack messages
-- Notion pages
-- Google Drive
-- GitHub repositories
-- Meeting notes
-- PDFs
-- Internal systems
-
-The problem is not lack of information.
-
-The problem is:
-
-> Information exists, but intelligence cannot access it.
-
----
-
-**Norma AI creates an intelligent layer between humans and their knowledge.**
+Knowledge is scattered across documents, chats, drives, and repos. Norma AI is
+an intelligent layer between people and that knowledge: **RAG + multi-agent
+workflows + long-term memory**, scoped by workspace, project, and knowledge space.
 
 It combines:
 
-- Large Language Models
-- Autonomous AI Agents
-- Retrieval Augmented Generation (RAG)
-- Long-term Memory
-- Workflow Automation
-
-to create an AI operating system that understands, remembers and executes.
+- Large language models (via OpenRouter)
+- LangGraph agent workflows
+- Retrieval Augmented Generation (Qdrant + BGE-M3)
+- Conversation and vectorized workspace memory
+- Async workers for long-running ingest and strategy runs
 
 ---
 
 # Vision
 
-Our vision is to build an AI system that works like a:
+Build an AI system that works like a chief of staff, researcher, product manager,
+and technical advisor — not only answering questions, but helping you **ship
+outcomes**.
 
-- Chief of Staff
-- Research Analyst
-- Product Manager
-- Knowledge Manager
-- Business Assistant
-- Technical Advisor
-
-Instead of asking:
-
-> "What can AI answer?"
-
-Norma asks:
-
-> "What can AI help you accomplish?"
-
+> Humans define goals. AI accelerates execution.
 
 ---
 
-# Core Features
+# Features (shipped)
 
-## Multi-Agent AI System
+- **RAG knowledge base** — PDF / DOCX / Markdown / TXT, async index, space isolation  
+- **RAG Assistant** — cited answers, conversation threads, memory notes  
+- **Launch Strategy pack** — research → planning → specs → content → ingest  
+- **Live web research** — DuckDuckGo snippets for the Research Agent  
+- **Auth** — email/password, HttpOnly JWT cookies, workspace membership  
+- **Projects & knowledge spaces** — UI switcher + create flows  
+- **Async workers** — Redis queue for documents and Launch Strategy, heartbeat readiness  
+- **React workspace** — Assistant / Workflows / Knowledge views  
 
-Norma is not a single chatbot.
+Deep dives: [agents](docs/agents.md) · [RAG](docs/rag.md) · [memory](docs/memory.md) · [API](docs/api.md)
 
-It is an ecosystem of specialized AI agents working together.
+---
 
-```
-                         User
+# Architecture (overview)
 
-                          │
-
-                          ▼
-
-                   Norma Core Agent
-
-                          │
-
-        ┌─────────────────┼─────────────────┐
-
-        ▼                 ▼                 ▼
-
-
- Research Agent      Planning Agent     Memory Agent
-
-
-        │                 │                 │
-
-
-        ▼                 ▼                 ▼
-
-
- Knowledge         Workflows          Personal Context
-
-
-        │
-
-        ▼
-
-
- Execution Agent
-
-
-        │
-
-        ▼
-
-
-      Final Result
-
+```text
+React (Vite)  →  FastAPI  →  services / LangGraph
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+   PostgreSQL      Redis       Qdrant
+   (state)       (jobs)      (vectors)
+                     │
+                     ▼
+              worker process
+                     │
+                     ▼
+            embedding service (BGE-M3)
+                     │
+                     ▼
+                 OpenRouter
 ```
 
+Modular monolith with clear boundaries. Full write-up:
+[docs/architecture.md](docs/architecture.md).
 
 ---
 
-# Intelligent Memory
+# Multi-agent system
 
-Norma remembers context.
+Launch Strategy coordinator (worker):
 
-Examples:
-
-```
-User:
-"I want to build a coffee business in Australia."
-
-Norma stores:
-
-- Business interests
-- Previous decisions
-- Market preferences
-- Current projects
-- Important context
-
-Future conversations become smarter.
+```text
+retrieve → research → planning → spec → content → persist → memory
 ```
 
----
+RAG Assistant (request path): retrieve → generate (or no-context).
 
-# 📚 Knowledge Base with RAG
-
-Upload your knowledge:
-
-```
-Documents
-
-├── PDF
-├── DOCX
-├── Markdown
-├── TXT
-├── Code
-└── Web Pages
-
-        ↓
-
-   Embeddings
-
-        ↓
-
-     Qdrant
-
-        ↓
-
- Semantic Retrieval
-
-        ↓
-
- AI Response
-
-```
+Details: [docs/agents.md](docs/agents.md).
 
 ---
 
-# Autonomous Workflows
-
-Norma can execute complex tasks.
-
-Example:
-
-```
-User:
-
-"Create a launch strategy for my SaaS product"
-
-
-Norma:
-
-
-1. Understand objective
-
-2. Research market
-
-3. Analyze competitors
-
-4. Create positioning
-
-5. Generate roadmap
-
-6. Prepare marketing plan
-
-7. Save knowledge
-
-
-Result:
-
-Complete strategic document
-
-```
-
----
-
-# Architecture
-
-High-level architecture:
-
-```
-
-                     Frontend
-
-                React + TypeScript
-
-                         │
-
-                         ▼
-
-
-                     FastAPI
-
-
-                         │
-
-
-                         ▼
-
-
-                   LangGraph
-
-
-                         │
-
-
-        ┌────────────────────────────────┐
-
-
-        ▼                ▼               ▼
-
-
-   AI Agents          Memory          Tools
-
-
-        │                │               │
-
-
-        ▼                ▼               ▼
-
-
-   LangChain        PostgreSQL       APIs
-
-
-        │
-
-
-        ▼
-
-
-    OpenRouter
-
-
-        │
-
-
-        ▼
-
-
- GPT / Claude / Gemini
-
-
-        │
-
-
-        ▼
-
-
-      Qdrant
-
-
-```
-
----
-
-# AI Agents
-
-## Norma Core Agent
-
-The brain of the system.
-
-Responsibilities:
-
-- Understand user intent
-- Create execution plans
-- Coordinate agents
-- Manage workflow state
-
-
----
-
-## Research Agent
-
-Responsible for:
-
-- Information discovery
-- Document analysis
-- Market research
-- Knowledge retrieval
-
-
----
-
-## Memory Agent
-
-Maintains long-term context:
-
-- User preferences
-- Previous conversations
-- Project history
-- Important decisions
-
-
----
-
-## Planning Agent
-
-Transforms goals into actions.
-
-Example:
-
-Input:
-
-```
-Build an AI SaaS product
-```
-
-Output:
-
-```
-Research
-
-↓
-
-Architecture
-
-↓
-
-Development plan
-
-↓
-
-Launch strategy
-
-↓
-
-Marketing
-
-```
-
----
-
-## Execution Agent
-
-Turns decisions into actions.
-
-Examples:
-
-- Create documents
-- Generate reports
-- Prepare tasks
-- Build specifications
-
-
----
-
-# 🛠 Technology Stack
-
-
-## Backend
-
-| Technology | Purpose |
-|-|-|
-| Python 3.12 | Core language |
-| FastAPI | API layer |
-| Pydantic | Data validation |
-| SQLAlchemy | ORM |
-| PostgreSQL | Persistent storage |
-| Redis | Cache and queues |
-
-
----
-
-## AI Layer
-
-| Technology | Purpose |
-|-|-|
-| LangGraph | Agent orchestration |
-| LangChain | AI framework |
-| OpenRouter | LLM gateway |
-| Claude | Reasoning model |
-| GPT | General intelligence |
-
-
----
-
-## Knowledge Layer
-
-| Technology | Purpose |
-|-|-|
-| Qdrant | Vector database |
-| BGE-M3 | Embeddings |
-| RAG | Knowledge retrieval |
-| Reranking | Better relevance |
-
-
----
-
-## Infrastructure
-
-| Technology | Purpose |
-|-|-|
-| Docker | Containers |
-| Docker Compose | Local environment |
-| GitHub Actions | CI/CD |
-| Nginx | Reverse proxy |
-
-
----
-
-# 📂 Project Structure
-
-```
-norma-ai/
-├── backend/app/
-│   ├── api/v1/       # Versioned HTTP transport
-│   ├── core/         # Configuration, logging, security primitives
-│   ├── database/     # SQLAlchemy engine, sessions, model base
-│   ├── services/     # Application use cases
-│   ├── schemas/      # Validated transport and service DTOs
-│   ├── agents/       # Provider-neutral agent contracts
-│   ├── workflows/    # Workflow orchestration contracts
-│   ├── rag/          # Embedding, vector store, retrieval boundaries
-│   ├── memory/       # Long-term memory boundaries
-│   └── main.py       # FastAPI composition root
-├── backend/alembic/  # Versioned PostgreSQL schema migrations
-├── embedding_service/ # Local BGE-M3 inference API
-├── frontend/         # React, TypeScript, Vite, Tailwind CSS
-├── docker/           # Container build definitions
-├── docs/             # Architecture and engineering decisions
-├── tests/            # Automated backend tests
-├── docker-compose.yml
-└── pyproject.toml
-```
-
-Norma AI begins as a modular monolith: domain boundaries remain explicit while
-deployment stays simple for the MVP. PostgreSQL owns durable relational data,
-Redis supports ephemeral coordination, and Qdrant owns vector search. See
-[`docs/architecture.md`](docs/architecture.md) for dependency rules and the
-scaling path.
-
----
-
-# Roadmap
-
-
-## Phase 1 — Foundation
-
-Status: Foundation Ready
-
-
-- [x] Project concept
-- [x] Architecture design
-- [x] FastAPI backend
-- [x] Docker setup
-- [x] OpenRouter integration
-
-
----
-
-## Phase 2 — Knowledge Engine
-
-
-- [x] Document upload
-- [x] Embeddings pipeline
-- [x] Qdrant integration
-- [x] RAG retrieval
-
-
----
-
-## Phase 3 — Agent System
-
-
-- [x] LangGraph RAG Assistant workflow
-- [x] Coordinator Agent
-- [x] Research Agent
-- [x] Memory Agent
-- [x] Execution Agent
-
-
----
-
-## Phase 4 — Product
-
-
-- [x] React knowledge and assistant workspace
-- [x] Authentication
-- [x] User projects
-- [x] Knowledge spaces
-
-
----
-
-## Phase 5 — Enterprise
-
-
-- [ ] Slack integration
-- [ ] Notion integration
-- [ ] GitHub integration
-- [ ] Google Drive integration
-- [ ] CRM integrations
-
-
----
-
-# Quick Start
+# Quick start
 
 ```bash
-git clone https://github.com/<your-org>/norma-ai.git
-cd norma-ai
+git clone https://github.com/Alex7develop/norma-ai-agent-platform.git
+cd norma-ai-agent-platform
 cp .env.example .env
+# set SECRET_KEY and OPENROUTER_API_KEY
 docker compose up --build
 ```
 
-The API is available at `http://localhost:8000`, interactive documentation at
-`http://localhost:8000/docs`, liveness at
-`http://localhost:8000/api/v1/health`, and infrastructure readiness at
-`http://localhost:8000/api/v1/ready`.
+| URL | Purpose |
+|-|-|
+| http://localhost:8000/docs | OpenAPI |
+| http://localhost:8000/api/v1/health | Liveness |
+| http://localhost:8000/api/v1/ready | Readiness (incl. worker) |
+| http://localhost:5173 | React UI (`cd frontend && npm run dev`) |
 
-Knowledge endpoints are available under `/api/v1/knowledge`. Uploads support
-PDF, DOCX, Markdown, and TXT; semantic search is isolated by `workspace_id`.
-The first Docker startup downloads BGE-M3 into a persistent model cache and can
-therefore take several minutes.
+First embeddings boot may take several minutes (BGE-M3 download).
 
-The first agent endpoint is `POST /api/v1/assistant/query`. It runs a stateless
-LangGraph workflow, retrieves only the requested workspace, and returns an
-OpenRouter-generated answer together with explicit source metadata.
+Ops: [docs/deployment.md](docs/deployment.md) · local hacking: [docs/development.md](docs/development.md)
 
-The first multi-agent workflow is `POST /api/v1/workflows/launch-strategy`.
-A LangGraph coordinator runs Research, Planning, Spec, and Content agents, then
-an Execution agent assembles a full Launch Strategy Pack (market, competitors,
-positioning, roadmap, marketing, business model, financial outline, PRD, tech
-spec, Cursor prompts, LinkedIn/Telegram) and ingests it into the workspace
-knowledge base. A short workflow summary is also stored as workspace memory.
-Load a prior run with `GET /api/v1/workflows/runs/{run_id}`.
+---
 
-The RAG assistant keeps conversation history via the Memory Agent
-(`conversation_id` on `POST /api/v1/assistant/query`) and can list threads with
-`GET /api/v1/assistant/conversations`.
+# Documentation
 
-The React workspace at `http://localhost:5173` provides registration, login,
-document upload, document management, Launch Strategy runs, remembered chat,
-assistant answers with citations. Sessions use HttpOnly cookies; knowledge,
-assistant, and workflow APIs require membership in the requested workspace.
+| Path | Description |
+|-|-|
+| [docs/README.md](docs/README.md) | Docs index |
+| [docs/architecture.md](docs/architecture.md) | System design |
+| [docs/agents.md](docs/agents.md) | Agents & LangGraph |
+| [docs/rag.md](docs/rag.md) | Knowledge engine |
+| [docs/memory.md](docs/memory.md) | Conversations & notes |
+| [docs/api.md](docs/api.md) | HTTP overview |
+| [docs/deployment.md](docs/deployment.md) | Docker / ops |
+| [docs/development.md](docs/development.md) | Contributor setup |
+| [docs/roadmap.md](docs/roadmap.md) | Phased roadmap |
 
-For backend development without Docker:
+Community: [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.example .env
-uvicorn app.main:app --app-dir backend --reload
-pytest
-```
+---
 
-For frontend development:
+# Roadmap (summary)
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+Phases 1–4 are complete for the MVP product surface. **Phase 5** targets
+enterprise connectors (Slack, Notion, GitHub, Google Drive, CRM).
+
+Full checklist: [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
 # Security
 
-Norma AI is designed with privacy in mind.
-
-Principles:
-
-- User data isolation
-- Secure API communication
-- Controlled tool execution
-- Permission-based integrations
-
+Workspace membership isolation, HttpOnly cookies, hashed refresh tokens, and
+environment-backed secrets. Report vulnerabilities per [SECURITY.md](SECURITY.md).
 
 ---
 
 # Philosophy
 
-
-AI should not replace human thinking.
-
-AI should amplify:
-
-- Creativity
-- Decision making
-- Execution speed
-- Knowledge management
-
-
-Norma AI is built around this idea:
-
-> Humans define goals. AI accelerates execution.
-
-
----
-
-# Future Vision
-
-The future workplace will not be humans versus AI.
-
-It will be humans working with intelligent systems.
-
-Norma AI aims to become the operating layer between people and information — helping individuals and organizations transform knowledge into action.
-
+AI should amplify creativity, decisions, and execution — not replace judgment.
 
 ---
 
 # Support
 
-If you like the idea:
-
-- Star the repository
-- Follow development
-- Share feedback
-
-
----
+- Star the repository  
+- Open issues with repro steps  
+- Share product feedback  
 
 <div align="center">
-
-## Norma AI
 
 ### The intelligent operating system for the next generation of work.
 

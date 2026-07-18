@@ -29,8 +29,8 @@ search, and an independently scalable BGE-M3 embedding service. Persistent
 services and the model cache use named Docker volumes.
 
 The liveness endpoint deliberately checks only the API process. The readiness
-endpoint checks PostgreSQL, Redis, Qdrant, and embeddings without turning a
-temporary dependency outage into an application restart loop.
+endpoint checks PostgreSQL, Redis, Qdrant, embeddings, and the worker heartbeat
+without turning a temporary dependency outage into an application restart loop.
 
 ## Knowledge engine
 
@@ -109,12 +109,11 @@ each answer.
 
 ## Scaling path
 
-1. Add Alembic migrations, tenant-aware identity, and request observability.
-2. Implement document ingestion and retrieval behind the existing RAG ports.
-3. Implement memory policies and one auditable agent workflow.
-4. Move long-running ingestion and execution to background workers.
-5. Scale stateless API and workers independently.
-6. Extract services only when operational load or ownership demands it.
+1. ~~Migrations, identity, RAG ports, agent workflow, Redis workers~~ — shipped for MVP.
+2. Scale stateless API and workers independently under load.
+3. Add observability (structured traces, queue lag, ingest SLOs).
+4. Extract services only when operational load or team ownership demands it.
+5. Enterprise connectors (Slack/Notion/Drive/…) as Phase 5 adapters.
 
 ## Security baseline
 

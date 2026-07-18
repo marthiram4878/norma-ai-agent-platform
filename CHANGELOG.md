@@ -1,0 +1,30 @@
+# Changelog
+
+All notable changes to Norma AI are documented here.
+Format inspired by [Keep a Changelog](https://keepachangelog.com/).
+
+## [Unreleased]
+
+### Documentation
+
+- Added engineering docs under `docs/` (agents, RAG, memory, API, deployment, development, roadmap).
+- Added CONTRIBUTING, SECURITY, CODE_OF_CONDUCT; README now acts as documentation hub.
+
+## [0.1.0] — 2026-07-18
+
+### Added
+
+- FastAPI modular monolith with Alembic, auth (HttpOnly JWT cookies), workspaces.
+- Knowledge engine: async document ingest, BGE-M3 embeddings, Qdrant retrieval.
+- Projects and knowledge spaces with UI switcher / create flows.
+- RAG Assistant LangGraph workflow with conversation memory.
+- Launch Strategy multi-agent pack (research, planning, spec, content, execution).
+- DuckDuckGo web research tool for Research Agent.
+- Redis worker for Launch Strategy + knowledge ingest; heartbeat readiness.
+- Vectorized workspace memory notes (`source_type=memory`).
+- React workspace: Assistant, Workflows, Knowledge views with run progress UX.
+
+### Security
+
+- Workspace membership authorization on knowledge/assistant/workflow/project APIs.
+- Refresh tokens stored as SHA-256 hashes and revocable on logout.

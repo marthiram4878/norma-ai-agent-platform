@@ -68,6 +68,7 @@ async def test_ingest_coordinates_persistence_embeddings_and_vectors() -> None:
 
     result = await service.ingest(
         workspace_id=workspace_id,
+        space_id=uuid4(),
         filename="notes.txt",
         content_type="text/plain",
         data=b"Norma stores useful knowledge.",

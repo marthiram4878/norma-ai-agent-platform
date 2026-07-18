@@ -66,6 +66,11 @@ class WorkflowRun(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    space_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("knowledge_spaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
@@ -79,6 +84,7 @@ class WorkflowRun(Base):
     )
     brief: Mapped[str] = mapped_column(Text, nullable=False)
     product_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    current_step: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

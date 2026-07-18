@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.database.workflow_models import (
     ArtifactKind,
@@ -15,6 +16,7 @@ from app.database.workflow_models import (
 )
 from app.services.knowledge import KnowledgeService
 from app.services.memory import MemoryService
+from app.services.queue import JobQueue
 from app.workflows.launch_strategy import LaunchStrategyResult, LaunchStrategyWorkflow
 
 
@@ -27,6 +29,7 @@ class KnowledgeIngestAdapter:
     """Adapt KnowledgeService to the ExecutionAgent persister port."""
 
     knowledge: KnowledgeService
+    space_id: UUID
 
     async def persist_markdown(
         self,
@@ -37,6 +40,7 @@ class KnowledgeIngestAdapter:
     ) -> UUID:
         indexed = await self.knowledge.ingest(
             workspace_id=workspace_id,
+            space_id=self.space_id,
             filename=filename,
             content_type="text/markdown",
             data=content.encode("utf-8"),
@@ -45,7 +49,7 @@ class KnowledgeIngestAdapter:
 
 
 class LaunchStrategyService:
-    """Create, execute, and load Launch Strategy workflow runs."""
+    """Create, enqueue, execute, and load Launch Strategy workflow runs."""
 
     def __init__(
         self,
@@ -53,70 +57,105 @@ class LaunchStrategyService:
         workflow: LaunchStrategyWorkflow | None = None,
         knowledge: KnowledgeService | None = None,
         memory: MemoryService | None = None,
+        queue: JobQueue | None = None,
     ) -> None:
         self.session = session
         self.workflow = workflow
         self.knowledge = knowledge
         self.memory = memory
+        self.queue = queue or JobQueue()
 
-    async def run(
+    async def enqueue(
         self,
         *,
         workspace_id: UUID,
         user_id: UUID,
         brief: str,
         product_name: str | None = None,
-    ) -> tuple[WorkflowRun, str]:
-        """Execute the coordinator synchronously and persist artifacts."""
+        space_id: UUID | None = None,
+    ) -> WorkflowRun:
+        """Persist a pending run and push it onto the Redis queue."""
 
-        if self.workflow is None or self.knowledge is None:
-            raise RuntimeError("Launch strategy workflow is not configured")
-
+        if space_id is None:
+            raise ValueError("space_id is required")
         run = WorkflowRun(
             workspace_id=workspace_id,
+            space_id=space_id,
             user_id=user_id,
             workflow_type=LaunchStrategyWorkflow.WORKFLOW_TYPE,
-            status=WorkflowStatus.RUNNING,
+            status=WorkflowStatus.PENDING,
             brief=brief.strip(),
             product_name=(product_name or None),
+            current_step="queued",
         )
         self.session.add(run)
         await self.session.commit()
         await self.session.refresh(run)
+        # Avoid async lazy-load when the API serializes a brand-new pending run.
+        set_committed_value(run, "artifacts", [])
+        await self.queue.enqueue_launch_strategy(run_id=run.id)
+        return run
+
+    async def execute_run(self, *, run_id: UUID) -> WorkflowRun:
+        """Worker entrypoint: load a pending run and execute the graph."""
+
+        if self.workflow is None or self.knowledge is None:
+            raise RuntimeError("Launch strategy workflow is not configured")
+
+        run = await self.session.scalar(
+            select(WorkflowRun).where(WorkflowRun.id == run_id)
+        )
+        if run is None:
+            raise WorkflowRunNotFound("Workflow run not found")
+
+        run.status = WorkflowStatus.RUNNING
+        run.current_step = "starting"
+        run.error = None
+        await self.session.commit()
+
+        async def on_progress(step: str) -> None:
+            run.current_step = step
+            await self.session.commit()
+
+        self.workflow.on_progress = on_progress
+        self.workflow.persister = KnowledgeIngestAdapter(
+            self.knowledge, space_id=run.space_id
+        )
+        self.workflow.execution.persister = self.workflow.persister
 
         try:
-            # Rebind persister to this request's knowledge session.
-            self.workflow.persister = KnowledgeIngestAdapter(self.knowledge)
-            self.workflow.execution.persister = self.workflow.persister
             result = await self.workflow.invoke(
-                workspace_id=str(workspace_id),
-                brief=brief,
-                product_name=product_name,
+                workspace_id=str(run.workspace_id),
+                space_id=str(run.space_id),
+                brief=run.brief,
+                product_name=run.product_name,
             )
             await self._persist_result(run, result)
             if self.memory is not None:
                 await self.memory.remember_workflow_summary(
-                    workspace_id=workspace_id,
+                    workspace_id=run.workspace_id,
+                    space_id=run.space_id,
                     run_id=run.id,
                     summary_md=(
                         f"Launch Strategy completed for **{result.product_name}**.\n\n"
-                        f"Brief: {brief.strip()[:500]}\n\n"
+                        f"Brief: {run.brief.strip()[:500]}\n\n"
                         f"Pack saved as `{result.pack_filename}` "
                         f"(document_id={result.document_id})."
                     ),
                 )
             run.status = WorkflowStatus.COMPLETED
             run.product_name = result.product_name
+            run.current_step = "done"
             run.error = None
             await self.session.commit()
         except Exception as exc:
             run.status = WorkflowStatus.FAILED
+            run.current_step = "failed"
             run.error = f"{type(exc).__name__}: workflow failed"
             await self.session.commit()
             raise
 
-        loaded = await self.get_run(run_id=run.id, workspace_id=workspace_id)
-        return loaded, result.model
+        return await self.get_run(run_id=run.id, workspace_id=run.workspace_id)
 
     async def _persist_result(
         self,
@@ -167,3 +206,22 @@ class LaunchStrategyService:
         if run is None:
             raise WorkflowRunNotFound("Workflow run not found")
         return run
+
+    async def list_runs(
+        self,
+        *,
+        workspace_id: UUID,
+        limit: int = 30,
+        space_id: UUID | None = None,
+    ) -> list[WorkflowRun]:
+        filters = [WorkflowRun.workspace_id == workspace_id]
+        if space_id is not None:
+            filters.append(WorkflowRun.space_id == space_id)
+        query = (
+            select(WorkflowRun)
+            .where(*filters)
+            .order_by(WorkflowRun.created_at.desc())
+            .limit(limit)
+        )
+        rows = (await self.session.scalars(query)).all()
+        return list(rows)

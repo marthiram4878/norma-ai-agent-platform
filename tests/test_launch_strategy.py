@@ -22,6 +22,7 @@ class FakeRetriever:
         query: str,
         *,
         workspace_id: str,
+        space_id: str | None = None,
         limit: int = 10,
     ) -> list[RetrievedDocument]:
         return self.documents[:limit]
@@ -125,11 +126,15 @@ async def test_launch_strategy_runs_agents_and_persists() -> None:
         ),
         persister,  # type: ignore[arg-type]
         client=client,  # type: ignore[arg-type]
-        config=Settings(openrouter_model="google/gemini-3.5-flash"),
+        config=Settings(
+            openrouter_model="google/gemini-3.5-flash",
+            web_search_enabled=False,
+        ),
     )
 
     result = await workflow.invoke(
         workspace_id=str(uuid4()),
+        space_id=str(uuid4()),
         brief="I want to open a network of coffee shops in Australia.",
         product_name="Aussie Roast",
     )

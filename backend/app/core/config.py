@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     qdrant_port: int = 6333
     qdrant_collection: str = "norma_knowledge"
     redis_url: str = "redis://localhost:6379/0"
+    launch_strategy_queue: str = "norma:jobs:launch_strategy"
+    web_search_enabled: bool = True
+    web_search_max_results: int = 5
     embedding_service_url: str = "http://localhost:8001"
     embedding_dimension: int = 1024
     max_upload_size_bytes: int = 10 * 1024 * 1024

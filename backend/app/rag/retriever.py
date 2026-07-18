@@ -24,7 +24,12 @@ class Retriever(Protocol):
     """Interface consumed by future RAG use cases."""
 
     async def retrieve(
-        self, query: str, *, workspace_id: str, limit: int = 10
+        self,
+        query: str,
+        *,
+        workspace_id: str,
+        space_id: str | None = None,
+        limit: int = 10,
     ) -> Sequence[RetrievedDocument]:
         """Return the most relevant document chunks."""
 
@@ -58,23 +63,30 @@ class QdrantRetriever:
         query: str,
         *,
         workspace_id: str,
+        space_id: str | None = None,
         limit: int = 10,
     ) -> Sequence[RetrievedDocument]:
-        """Embed a query and search only inside one workspace."""
+        """Embed a query and search only inside one workspace/space."""
 
         await self._store.ensure_collection()
         query_vector = await self.embeddings.embed_query(query)
+        must = [
+            models.FieldCondition(
+                key="workspace_id",
+                match=models.MatchValue(value=workspace_id),
+            )
+        ]
+        if space_id is not None:
+            must.append(
+                models.FieldCondition(
+                    key="space_id",
+                    match=models.MatchValue(value=space_id),
+                )
+            )
         result = await self.client.query_points(
             collection_name=self.collection_name,
             query=query_vector,
-            query_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="workspace_id",
-                        match=models.MatchValue(value=workspace_id),
-                    )
-                ]
-            ),
+            query_filter=models.Filter(must=must),
             limit=limit,
             with_payload=True,
         )

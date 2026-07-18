@@ -12,6 +12,7 @@ class AssistantQuery(BaseModel):
     workspace_id: UUID
     question: str = Field(min_length=1, max_length=4_000)
     conversation_id: UUID | None = None
+    space_id: UUID | None = None
 
 
 class AssistantSource(BaseModel):

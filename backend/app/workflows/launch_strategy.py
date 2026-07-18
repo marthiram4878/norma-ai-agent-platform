@@ -1,5 +1,6 @@
 """LangGraph coordinator for the Launch Strategy multi-agent pack."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, TypedDict
 from uuid import UUID
@@ -16,11 +17,14 @@ from app.core.config import Settings, settings
 from app.rag.retriever import Retriever
 from app.services.llm import create_openrouter_client
 
+ProgressCallback = Callable[[str], Awaitable[None]]
+
 
 class LaunchStrategyState(TypedDict):
     """Serializable state passed between coordinator nodes."""
 
     workspace_id: str
+    space_id: str
     brief: str
     product_name: str
     context_chunks: list[str]
@@ -92,11 +96,13 @@ class LaunchStrategyWorkflow:
         *,
         client: AsyncOpenAI | None = None,
         config: Settings = settings,
+        on_progress: ProgressCallback | None = None,
     ) -> None:
         self.retriever = retriever
         self.persister = persister
         self.client = client or create_openrouter_client(config)
         self.config = config
+        self.on_progress = on_progress
         self.research = ResearchAgent(self.client, config=config)
         self.planning = PlanningAgent(self.client, config=config)
         self.spec = SpecAgent(self.client, config=config)
@@ -104,14 +110,42 @@ class LaunchStrategyWorkflow:
         self.execution = ExecutionAgent(persister)
         self.graph = self._build_graph()
 
+    async def _step(
+        self,
+        name: str,
+        handler: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
+        state: dict[str, Any],
+    ) -> dict[str, Any]:
+        if self.on_progress is not None:
+            await self.on_progress(name)
+        return await handler(state)
+
+    async def _node_retrieve(self, state: LaunchStrategyState) -> dict[str, Any]:
+        return await self._step("retrieve", self._retrieve_context, state)
+
+    async def _node_research(self, state: LaunchStrategyState) -> dict[str, Any]:
+        return await self._step("research", self.research.invoke, state)
+
+    async def _node_planning(self, state: LaunchStrategyState) -> dict[str, Any]:
+        return await self._step("planning", self.planning.invoke, state)
+
+    async def _node_spec(self, state: LaunchStrategyState) -> dict[str, Any]:
+        return await self._step("spec", self.spec.invoke, state)
+
+    async def _node_content(self, state: LaunchStrategyState) -> dict[str, Any]:
+        return await self._step("content", self.content.invoke, state)
+
+    async def _node_persist(self, state: LaunchStrategyState) -> dict[str, Any]:
+        return await self._step("persist", self.execution.invoke, state)
+
     def _build_graph(self) -> Any:
         builder = StateGraph(LaunchStrategyState)
-        builder.add_node("retrieve_context", self._retrieve_context)
-        builder.add_node("research_synthesize", self.research.invoke)
-        builder.add_node("draft_pack", self.planning.invoke)
-        builder.add_node("draft_specs", self.spec.invoke)
-        builder.add_node("draft_content", self.content.invoke)
-        builder.add_node("assemble_and_persist", self.execution.invoke)
+        builder.add_node("retrieve_context", self._node_retrieve)
+        builder.add_node("research_synthesize", self._node_research)
+        builder.add_node("draft_pack", self._node_planning)
+        builder.add_node("draft_specs", self._node_spec)
+        builder.add_node("draft_content", self._node_content)
+        builder.add_node("assemble_and_persist", self._node_persist)
         builder.add_edge(START, "retrieve_context")
         builder.add_edge("retrieve_context", "research_synthesize")
         builder.add_edge("research_synthesize", "draft_pack")
@@ -125,6 +159,7 @@ class LaunchStrategyWorkflow:
         documents = await self.retriever.retrieve(
             state["brief"],
             workspace_id=state["workspace_id"],
+            space_id=state.get("space_id") or None,
             limit=6,
         )
         return {
@@ -137,6 +172,7 @@ class LaunchStrategyWorkflow:
         workspace_id: str,
         brief: str,
         product_name: str | None = None,
+        space_id: str | None = None,
     ) -> LaunchStrategyResult:
         """Run the coordinator graph and return structured artifacts."""
 
@@ -144,6 +180,7 @@ class LaunchStrategyWorkflow:
         result = await self.graph.ainvoke(
             {
                 "workspace_id": workspace_id,
+                "space_id": space_id or "",
                 "brief": brief.strip(),
                 "product_name": resolved_name,
                 **_EMPTY_STATE_FIELDS,

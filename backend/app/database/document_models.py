@@ -53,6 +53,11 @@ class Document(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    space_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("knowledge_spaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     filename: Mapped[str] = mapped_column(String(1024), nullable=False)
     content_type: Mapped[str] = mapped_column(String(255), nullable=False)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -103,6 +108,11 @@ class DocumentChunk(Base):
         index=True,
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    space_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("knowledge_spaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

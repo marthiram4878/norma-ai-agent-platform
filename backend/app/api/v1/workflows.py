@@ -1,82 +1,34 @@
 """Multi-agent workflow endpoints."""
 
 import logging
-from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from openai import OpenAIError
-from qdrant_client.http.exceptions import (
-    ResponseHandlingException,
-    UnexpectedResponse,
-)
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, require_workspace_access
 from app.database.auth_models import User
 from app.database.session import get_db_session
 from app.database.workflow_models import WorkflowArtifact, WorkflowRun
-from app.rag.container import retriever
-from app.rag.embeddings import EmbeddingServiceError
 from app.schemas.workflows import (
     LaunchStrategyRequest,
     WorkflowArtifactResponse,
     WorkflowRunResponse,
+    WorkflowRunSummary,
 )
-from app.services.knowledge import KnowledgeIngestionError, KnowledgeService
-from app.services.launch_strategy import (
-    KnowledgeIngestAdapter,
-    LaunchStrategyService,
-    WorkflowRunNotFound,
-)
-from app.services.llm import OpenRouterConfigurationError
-from app.services.memory import MemoryService
-from app.workflows.launch_strategy import LaunchStrategyWorkflow
+from app.services.launch_strategy import LaunchStrategyService, WorkflowRunNotFound
+from app.services.projects import ProjectService, SpaceNotFound
+from app.services.queue import JobQueue
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
 
-def get_knowledge_service(
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> KnowledgeService:
-    return KnowledgeService(session)
-
-
-def get_memory_service(
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> MemoryService:
-    return MemoryService(session)
-
-
-def get_workflow_reader(
+def get_workflow_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> LaunchStrategyService:
-    return LaunchStrategyService(session)
-
-
-async def get_launch_strategy_service(
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-    knowledge: Annotated[KnowledgeService, Depends(get_knowledge_service)],
-    memory: Annotated[MemoryService, Depends(get_memory_service)],
-) -> AsyncIterator[LaunchStrategyService]:
-    try:
-        workflow = LaunchStrategyWorkflow(
-            retriever,
-            KnowledgeIngestAdapter(knowledge),
-        )
-    except OpenRouterConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    try:
-        yield LaunchStrategyService(
-            session,
-            workflow=workflow,
-            knowledge=knowledge,
-            memory=memory,
-        )
-    finally:
-        await workflow.client.close()
+    return LaunchStrategyService(session, queue=JobQueue())
 
 
 def _artifact_response(artifact: WorkflowArtifact) -> WorkflowArtifactResponse:
@@ -90,11 +42,7 @@ def _artifact_response(artifact: WorkflowArtifact) -> WorkflowArtifactResponse:
     )
 
 
-def _run_response(
-    run: WorkflowRun,
-    *,
-    model: str | None = None,
-) -> WorkflowRunResponse:
+def _run_response(run: WorkflowRun) -> WorkflowRunResponse:
     pack = next((item for item in run.artifacts if item.kind.value == "pack"), None)
     return WorkflowRunResponse(
         id=run.id,
@@ -103,8 +51,8 @@ def _run_response(
         status=run.status.value,
         brief=run.brief,
         product_name=run.product_name,
+        current_step=run.current_step,
         error=run.error,
-        model=model,
         pack_filename=pack.title if pack else None,
         document_id=pack.document_id if pack else None,
         artifacts=[_artifact_response(item) for item in run.artifacts],
@@ -113,53 +61,91 @@ def _run_response(
     )
 
 
-@router.post("/launch-strategy", response_model=WorkflowRunResponse)
-async def run_launch_strategy(
+def _run_summary(run: WorkflowRun) -> WorkflowRunSummary:
+    return WorkflowRunSummary(
+        id=run.id,
+        workspace_id=run.workspace_id,
+        workflow_type=run.workflow_type,
+        status=run.status.value,
+        brief=run.brief,
+        product_name=run.product_name,
+        current_step=run.current_step,
+        error=run.error,
+        created_at=run.created_at,
+        updated_at=run.updated_at,
+    )
+
+
+@router.post(
+    "/launch-strategy",
+    response_model=WorkflowRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def enqueue_launch_strategy(
     payload: LaunchStrategyRequest,
-    service: Annotated[LaunchStrategyService, Depends(get_launch_strategy_service)],
+    service: Annotated[LaunchStrategyService, Depends(get_workflow_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> WorkflowRunResponse:
-    """Run research → planning → execution and save the pack into knowledge."""
+    """Enqueue Launch Strategy and return immediately for polling."""
 
     await require_workspace_access(
         session, user_id=user.id, workspace_id=payload.workspace_id
     )
+    projects = ProjectService(session)
     try:
-        run, model = await service.run(
+        if payload.space_id is None:
+            space_id = await projects.default_space_id(
+                workspace_id=payload.workspace_id, user_id=user.id
+            )
+        else:
+            await projects.require_space(
+                space_id=payload.space_id, workspace_id=payload.workspace_id
+            )
+            space_id = payload.space_id
+        run = await service.enqueue(
             workspace_id=payload.workspace_id,
             user_id=user.id,
             brief=payload.brief,
             product_name=payload.product_name,
+            space_id=space_id,
         )
-    except OpenAIError as exc:
-        logger.exception("Launch strategy LLM request failed")
+    except SpaceNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to enqueue launch strategy")
         raise HTTPException(
-            status_code=502, detail="Language model request failed"
-        ) from exc
-    except KnowledgeIngestionError as exc:
-        logger.exception("Launch strategy knowledge ingest failed")
-        raise HTTPException(
-            status_code=502, detail="Failed to save pack into knowledge"
-        ) from exc
-    except (
-        EmbeddingServiceError,
-        ResponseHandlingException,
-        UnexpectedResponse,
-    ) as exc:
-        logger.exception("Launch strategy retrieval/indexing failed")
-        raise HTTPException(
-            status_code=503, detail="Knowledge infrastructure failed"
+            status_code=503, detail="Failed to enqueue workflow job"
         ) from exc
 
-    return _run_response(run, model=model)
+    return _run_response(run)
+
+
+@router.get("/runs", response_model=list[WorkflowRunSummary])
+async def list_workflow_runs(
+    workspace_id: Annotated[UUID, Query()],
+    service: Annotated[LaunchStrategyService, Depends(get_workflow_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    user: Annotated[User, Depends(get_current_user)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    space_id: Annotated[UUID | None, Query()] = None,
+) -> list[WorkflowRunSummary]:
+    await require_workspace_access(
+        session, user_id=user.id, workspace_id=workspace_id
+    )
+    runs = await service.list_runs(
+        workspace_id=workspace_id,
+        limit=limit,
+        space_id=space_id,
+    )
+    return [_run_summary(run) for run in runs]
 
 
 @router.get("/runs/{run_id}", response_model=WorkflowRunResponse)
 async def get_workflow_run(
     run_id: UUID,
     workspace_id: Annotated[UUID, Query()],
-    service: Annotated[LaunchStrategyService, Depends(get_workflow_reader)],
+    service: Annotated[LaunchStrategyService, Depends(get_workflow_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> WorkflowRunResponse:

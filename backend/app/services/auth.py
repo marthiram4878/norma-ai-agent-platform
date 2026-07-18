@@ -106,6 +106,12 @@ class AuthService:
                 role=WorkspaceRole.OWNER,
             )
         )
+        from app.services.projects import ProjectService
+
+        await ProjectService(self.session).ensure_defaults(
+            workspace_id=workspace.id,
+            user_id=user.id,
+        )
         tokens = await self._issue_tokens(user)
         await self.session.commit()
         return AuthResult(user, [(workspace, WorkspaceRole.OWNER)], tokens)

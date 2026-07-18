@@ -54,6 +54,11 @@ class Conversation(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    space_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("knowledge_spaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
@@ -111,6 +116,11 @@ class WorkspaceMemory(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    space_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("knowledge_spaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     kind: Mapped[MemoryKind] = mapped_column(memory_kind_enum, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     source_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)

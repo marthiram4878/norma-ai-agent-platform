@@ -19,6 +19,7 @@ class FakeRetriever:
         query: str,
         *,
         workspace_id: str,
+        space_id: str | None = None,
         limit: int = 10,
     ) -> list[RetrievedDocument]:
         return self.documents[:limit]

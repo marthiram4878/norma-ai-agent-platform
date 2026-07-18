@@ -146,19 +146,43 @@ export function getSession(): Promise<AuthSession> {
   return request("/auth/me");
 }
 
+export interface KnowledgeSpace {
+  id: string;
+  project_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface Project {
+  id: string;
+  workspace_id: string;
+  name: string;
+  spaces: KnowledgeSpace[];
+  created_at: string;
+}
+
+export function listProjects(workspaceId: string): Promise<Project[]> {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return request(`/projects?${query}`);
+}
+
 export function listDocuments(
   workspaceId: string,
+  spaceId?: string | null,
 ): Promise<KnowledgeDocument[]> {
   const query = new URLSearchParams({ workspace_id: workspaceId });
+  if (spaceId) query.set("space_id", spaceId);
   return request(`/knowledge/documents?${query}`);
 }
 
 export function uploadDocument(
   workspaceId: string,
   file: File,
+  spaceId?: string | null,
 ): Promise<KnowledgeDocument> {
   const body = new FormData();
   body.append("workspace_id", workspaceId);
+  if (spaceId) body.append("space_id", spaceId);
   body.append("file", file);
   return request("/knowledge/documents", { method: "POST", body });
 }
@@ -177,6 +201,7 @@ export function askAssistant(
   workspaceId: string,
   question: string,
   conversationId?: string | null,
+  spaceId?: string | null,
 ): Promise<AssistantAnswer> {
   return request("/assistant/query", {
     method: "POST",
@@ -185,14 +210,17 @@ export function askAssistant(
       workspace_id: workspaceId,
       question,
       conversation_id: conversationId ?? null,
+      space_id: spaceId ?? null,
     }),
   });
 }
 
 export function listConversations(
   workspaceId: string,
+  spaceId?: string | null,
 ): Promise<ConversationSummary[]> {
   const query = new URLSearchParams({ workspace_id: workspaceId });
+  if (spaceId) query.set("space_id", spaceId);
   return request(`/assistant/conversations?${query}`);
 }
 
@@ -222,6 +250,7 @@ export interface WorkflowRun {
   status: string;
   brief: string;
   product_name: string | null;
+  current_step: string | null;
   error: string | null;
   model: string | null;
   pack_filename: string | null;
@@ -231,10 +260,24 @@ export interface WorkflowRun {
   updated_at: string;
 }
 
+export interface WorkflowRunSummary {
+  id: string;
+  workspace_id: string;
+  workflow_type: string;
+  status: string;
+  brief: string;
+  product_name: string | null;
+  current_step: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export function runLaunchStrategy(payload: {
   workspaceId: string;
   brief: string;
   productName?: string;
+  spaceId?: string | null;
 }): Promise<WorkflowRun> {
   return request("/workflows/launch-strategy", {
     method: "POST",
@@ -243,6 +286,24 @@ export function runLaunchStrategy(payload: {
       workspace_id: payload.workspaceId,
       brief: payload.brief,
       product_name: payload.productName || null,
+      space_id: payload.spaceId ?? null,
     }),
   });
+}
+
+export function listWorkflowRuns(
+  workspaceId: string,
+  spaceId?: string | null,
+): Promise<WorkflowRunSummary[]> {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  if (spaceId) query.set("space_id", spaceId);
+  return request(`/workflows/runs?${query}`);
+}
+
+export function getWorkflowRun(
+  workspaceId: string,
+  runId: string,
+): Promise<WorkflowRun> {
+  const query = new URLSearchParams({ workspace_id: workspaceId });
+  return request(`/workflows/runs/${runId}?${query}`);
 }

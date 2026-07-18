@@ -1,25 +1,41 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
+  AlertCircle,
   CheckCircle2,
   FileText,
   LoaderCircle,
   Rocket,
 } from "lucide-react";
 
-import type { WorkflowArtifact, WorkflowRun } from "../lib/api";
+import type {
+  WorkflowArtifact,
+  WorkflowRun,
+  WorkflowRunSummary,
+} from "../lib/api";
 
 import { ArtifactReader } from "./ArtifactReader";
 
 interface WorkflowsWorkspaceProps {
-  running: boolean;
-  run: WorkflowRun | null;
-  onRun: (brief: string, productName?: string) => Promise<void>;
+  runs: WorkflowRunSummary[];
+  activeRun: WorkflowRun | null;
+  enqueueing: boolean;
+  onEnqueue: (brief: string, productName?: string) => Promise<void>;
+  onSelectRun: (runId: string) => Promise<void>;
+}
+
+function statusLabel(run: WorkflowRunSummary | WorkflowRun): string {
+  if (run.status === "running" || run.status === "pending") {
+    return run.current_step ? `${run.status} · ${run.current_step}` : run.status;
+  }
+  return run.status;
 }
 
 export function WorkflowsWorkspace({
-  running,
-  run,
-  onRun,
+  runs,
+  activeRun,
+  enqueueing,
+  onEnqueue,
+  onSelectRun,
 }: WorkflowsWorkspaceProps) {
   const [brief, setBrief] = useState(
     "I want to open a network of coffee shops in Australia.",
@@ -31,9 +47,9 @@ export function WorkflowsWorkspace({
   } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
-  const artifacts = useMemo(() => run?.artifacts ?? [], [run]);
+  const artifacts = useMemo(() => activeRun?.artifacts ?? [], [activeRun]);
   const selectedKind =
-    run && selection?.runId === run.id ? selection.kind : "pack";
+    activeRun && selection?.runId === activeRun.id ? selection.kind : "pack";
 
   const selected: WorkflowArtifact | null = useMemo(() => {
     if (!artifacts.length) return null;
@@ -44,13 +60,18 @@ export function WorkflowsWorkspace({
     );
   }, [artifacts, selectedKind]);
 
+  const busy =
+    enqueueing ||
+    activeRun?.status === "pending" ||
+    activeRun?.status === "running";
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     const value = brief.trim();
-    if (!value || running) return;
+    if (!value || busy) return;
     setFullscreen(false);
     setSelection(null);
-    await onRun(value, productName.trim() || undefined);
+    await onEnqueue(value, productName.trim() || undefined);
   }
 
   return (
@@ -65,19 +86,21 @@ export function WorkflowsWorkspace({
               Launch Strategy
             </h1>
             <p className="mt-0.5 text-[10px] text-slate-600">
-              Multi-agent pack · saved to knowledge + memory
+              Async multi-agent pack · history · web research
             </p>
           </div>
         </div>
-        {run && (
+        {activeRun && (
           <div className="ml-auto flex items-center gap-2 text-[11px] text-slate-500">
-            {run.status === "completed" ? (
+            {activeRun.status === "completed" ? (
               <CheckCircle2 className="size-3.5 text-emerald-400" />
+            ) : activeRun.status === "failed" ? (
+              <AlertCircle className="size-3.5 text-red-400" />
             ) : (
               <LoaderCircle className="size-3.5 animate-spin text-amber-300" />
             )}
-            <span className="max-w-[280px] truncate">
-              {run.product_name ?? "Run"} · {run.status}
+            <span className="max-w-[320px] truncate">
+              {activeRun.product_name ?? "Run"} · {statusLabel(activeRun)}
             </span>
           </div>
         )}
@@ -94,24 +117,26 @@ export function WorkflowsWorkspace({
               placeholder="Product name (optional)"
               value={productName}
               onChange={(event) => setProductName(event.target.value)}
-              disabled={running}
+              disabled={busy}
             />
             <textarea
               className="min-h-28 w-full resize-y rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-xs leading-5 text-slate-200 outline-none placeholder:text-slate-600 focus:border-amber-400/30"
               placeholder="Describe the initiative…"
               value={brief}
               onChange={(event) => setBrief(event.target.value)}
-              disabled={running}
+              disabled={busy}
             />
             <button
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
-              disabled={!brief.trim() || running}
+              disabled={!brief.trim() || busy}
               type="submit"
             >
-              {running ? (
+              {busy ? (
                 <>
                   <LoaderCircle className="size-3.5 animate-spin" />
-                  Agents running…
+                  {activeRun?.current_step
+                    ? `Working · ${activeRun.current_step}`
+                    : "Queued…"}
                 </>
               ) : (
                 <>
@@ -123,19 +148,20 @@ export function WorkflowsWorkspace({
           </form>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            {!run ? (
-              <div className="px-2 py-10 text-center">
+            <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+              Run history
+            </p>
+            {runs.length === 0 ? (
+              <div className="px-2 py-8 text-center">
                 <FileText className="mx-auto size-6 text-slate-700" />
-                <p className="mt-3 text-xs text-slate-500">
-                  Artifacts will appear here after a run.
-                </p>
+                <p className="mt-3 text-xs text-slate-500">No runs yet.</p>
               </div>
             ) : (
               <ul className="space-y-1">
-                {artifacts.map((artifact) => {
-                  const active = selected?.id === artifact.id;
+                {runs.map((item) => {
+                  const active = activeRun?.id === item.id;
                   return (
-                    <li key={artifact.id}>
+                    <li key={item.id}>
                       <button
                         type="button"
                         className={`flex w-full flex-col rounded-lg px-3 py-2.5 text-left transition ${
@@ -143,22 +169,58 @@ export function WorkflowsWorkspace({
                             ? "bg-amber-400/10 text-amber-100"
                             : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"
                         }`}
-                        onClick={() => {
-                          setSelection({ runId: run.id, kind: artifact.kind });
-                          setFullscreen(false);
-                        }}
+                        onClick={() => void onSelectRun(item.id)}
                       >
-                        <span className="text-[10px] font-medium uppercase tracking-[0.12em] opacity-70">
-                          {artifact.kind.replaceAll("_", " ")}
+                        <span className="truncate text-xs font-medium">
+                          {item.product_name || item.brief.slice(0, 48)}
                         </span>
-                        <span className="mt-0.5 truncate text-xs font-medium">
-                          {artifact.title}
+                        <span className="mt-0.5 text-[10px] opacity-70">
+                          {statusLabel(item)}
                         </span>
                       </button>
                     </li>
                   );
                 })}
               </ul>
+            )}
+
+            {activeRun && artifacts.length > 0 && (
+              <>
+                <p className="mt-5 px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                  Artifacts
+                </p>
+                <ul className="space-y-1">
+                  {artifacts.map((artifact) => {
+                    const active = selected?.id === artifact.id;
+                    return (
+                      <li key={artifact.id}>
+                        <button
+                          type="button"
+                          className={`flex w-full flex-col rounded-lg px-3 py-2 text-left transition ${
+                            active
+                              ? "bg-white/[0.06] text-slate-100"
+                              : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300"
+                          }`}
+                          onClick={() => {
+                            setSelection({
+                              runId: activeRun.id,
+                              kind: artifact.kind,
+                            });
+                            setFullscreen(false);
+                          }}
+                        >
+                          <span className="text-[10px] uppercase tracking-[0.12em] opacity-70">
+                            {artifact.kind.replaceAll("_", " ")}
+                          </span>
+                          <span className="mt-0.5 truncate text-xs">
+                            {artifact.title}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
           </div>
         </section>
@@ -178,11 +240,12 @@ export function WorkflowsWorkspace({
               <div>
                 <Rocket className="mx-auto size-8 text-slate-700" />
                 <p className="mt-4 text-sm text-slate-400">
-                  Run Launch Strategy to generate a full pack
+                  {busy
+                    ? "Agents are working in the background…"
+                    : "Select a run or start a new Launch Strategy"}
                 </p>
                 <p className="mt-1 text-xs text-slate-600">
-                  Select any section to read it at full height — use expand for
-                  distraction-free view.
+                  Completed packs open here at full height.
                 </p>
               </div>
             </div>

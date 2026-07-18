@@ -1,6 +1,7 @@
 """RAG assistant HTTP contract tests."""
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -59,18 +60,22 @@ def test_assistant_query_requires_auth() -> None:
 
 def test_assistant_query_contract() -> None:
     memory = FakeMemoryService()
+    space_id = uuid4()
     app.dependency_overrides[get_rag_assistant] = FakeAssistantAgent
     app.dependency_overrides[get_memory_service] = lambda: memory
     try:
         with authenticated_client("app.api.v1.assistant"):
-            with TestClient(app) as client:
-                response = client.post(
-                    "/api/v1/assistant/query",
-                    json={
-                        "workspace_id": str(uuid4()),
-                        "question": "Where are vectors stored?",
-                    },
-                )
+            with patch("app.api.v1.assistant.ProjectService") as cls:
+                projects = cls.return_value
+                projects.default_space_id = AsyncMock(return_value=space_id)
+                with TestClient(app) as client:
+                    response = client.post(
+                        "/api/v1/assistant/query",
+                        json={
+                            "workspace_id": str(uuid4()),
+                            "question": "Where are vectors stored?",
+                        },
+                    )
     finally:
         app.dependency_overrides.pop(get_rag_assistant, None)
         app.dependency_overrides.pop(get_memory_service, None)

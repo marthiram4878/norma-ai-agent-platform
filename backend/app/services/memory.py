@@ -37,6 +37,7 @@ class MemoryService:
         self,
         *,
         workspace_id: UUID,
+        space_id: UUID,
         user_id: UUID,
         conversation_id: UUID | None,
         title_seed: str,
@@ -46,6 +47,7 @@ class MemoryService:
                 select(Conversation).where(
                     Conversation.id == conversation_id,
                     Conversation.workspace_id == workspace_id,
+                    Conversation.space_id == space_id,
                     Conversation.user_id == user_id,
                 )
             )
@@ -56,6 +58,7 @@ class MemoryService:
         title = title_seed.strip().splitlines()[0][:120] or "Conversation"
         conversation = Conversation(
             workspace_id=workspace_id,
+            space_id=space_id,
             user_id=user_id,
             title=title,
         )
@@ -116,11 +119,13 @@ class MemoryService:
         self,
         *,
         workspace_id: UUID,
+        space_id: UUID,
         run_id: UUID,
         summary_md: str,
     ) -> WorkspaceMemory:
         memory = WorkspaceMemory(
             workspace_id=workspace_id,
+            space_id=space_id,
             kind=MemoryKind.WORKFLOW_SUMMARY,
             content=summary_md.strip(),
             source_run_id=run_id,
@@ -133,12 +138,16 @@ class MemoryService:
         self,
         *,
         workspace_id: UUID,
+        space_id: UUID | None = None,
         limit: int = 5,
     ) -> list[str]:
+        filters = [WorkspaceMemory.workspace_id == workspace_id]
+        if space_id is not None:
+            filters.append(WorkspaceMemory.space_id == space_id)
         rows = (
             await self.session.scalars(
                 select(WorkspaceMemory)
-                .where(WorkspaceMemory.workspace_id == workspace_id)
+                .where(*filters)
                 .order_by(WorkspaceMemory.created_at.desc())
                 .limit(limit)
             )
@@ -150,14 +159,18 @@ class MemoryService:
         *,
         workspace_id: UUID,
         user_id: UUID,
+        space_id: UUID | None = None,
     ) -> list[Conversation]:
+        filters = [
+            Conversation.workspace_id == workspace_id,
+            Conversation.user_id == user_id,
+        ]
+        if space_id is not None:
+            filters.append(Conversation.space_id == space_id)
         rows = (
             await self.session.scalars(
                 select(Conversation)
-                .where(
-                    Conversation.workspace_id == workspace_id,
-                    Conversation.user_id == user_id,
-                )
+                .where(*filters)
                 .order_by(Conversation.updated_at.desc())
             )
         ).all()

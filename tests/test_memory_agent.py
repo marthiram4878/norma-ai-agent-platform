@@ -49,6 +49,7 @@ async def test_memory_agent_remembers_workflow() -> None:
         {
             "action": "remember_workflow",
             "workspace_id": str(uuid4()),
+            "space_id": str(uuid4()),
             "run_id": str(uuid4()),
             "summary_md": "Done",
         }

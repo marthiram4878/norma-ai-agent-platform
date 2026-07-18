@@ -78,14 +78,22 @@ class KnowledgeService:
         )
         return self._build_result(document, int(chunk_count or 0))
 
-    async def list_documents(self, *, workspace_id: UUID) -> list[IndexedDocument]:
-        """List newest documents inside one workspace."""
+    async def list_documents(
+        self,
+        *,
+        workspace_id: UUID,
+        space_id: UUID | None = None,
+    ) -> list[IndexedDocument]:
+        """List newest documents inside one workspace/space."""
 
+        filters = [Document.workspace_id == workspace_id]
+        if space_id is not None:
+            filters.append(Document.space_id == space_id)
         rows = (
             await self.session.execute(
                 select(Document, func.count(DocumentChunk.id))
                 .outerjoin(DocumentChunk, DocumentChunk.document_id == Document.id)
-                .where(Document.workspace_id == workspace_id)
+                .where(*filters)
                 .group_by(Document.id)
                 .order_by(Document.created_at.desc())
             )
@@ -99,6 +107,7 @@ class KnowledgeService:
         self,
         *,
         workspace_id: UUID,
+        space_id: UUID,
         filename: str,
         content_type: str,
         data: bytes,
@@ -112,6 +121,7 @@ class KnowledgeService:
         existing = await self.session.scalar(
             select(Document).where(
                 Document.workspace_id == workspace_id,
+                Document.space_id == space_id,
                 Document.sha256 == digest,
             )
         )
@@ -136,6 +146,7 @@ class KnowledgeService:
 
         document = Document(
             workspace_id=workspace_id,
+            space_id=space_id,
             filename=filename,
             content_type=content_type or parsed.file_type,
             size_bytes=len(data),
@@ -149,6 +160,7 @@ class KnowledgeService:
             DocumentChunk(
                 document_id=document.id,
                 workspace_id=workspace_id,
+                space_id=space_id,
                 chunk_index=index,
                 content=content,
             )
@@ -168,6 +180,7 @@ class KnowledgeService:
                         vector=embedding,
                         metadata={
                             "workspace_id": str(workspace_id),
+                            "space_id": str(space_id),
                             "document_id": str(document.id),
                             "chunk_id": str(chunk_models[offset + index].id),
                             "chunk_index": offset + index,

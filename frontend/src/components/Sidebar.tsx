@@ -2,13 +2,14 @@ import {
   Bot,
   Boxes,
   FileText,
+  FolderKanban,
   LayoutDashboard,
   LogOut,
   Settings,
   Sparkles,
 } from "lucide-react";
 
-import type { AuthUser, AuthWorkspace } from "../lib/api";
+import type { AuthUser, AuthWorkspace, Project } from "../lib/api";
 
 export type AppView = "assistant" | "workflows" | "knowledge";
 
@@ -25,18 +26,31 @@ const navigation: {
 interface SidebarProps {
   user: AuthUser;
   workspace: AuthWorkspace;
+  projects: Project[];
+  projectId: string | null;
+  spaceId: string | null;
   activeView: AppView;
   onNavigate: (view: AppView) => void;
+  onSelectProject: (projectId: string) => void;
+  onSelectSpace: (spaceId: string) => void;
   onLogout: () => void;
 }
 
 export function Sidebar({
   user,
   workspace,
+  projects,
+  projectId,
+  spaceId,
   activeView,
   onNavigate,
+  onSelectProject,
+  onSelectSpace,
   onLogout,
 }: SidebarProps) {
+  const activeProject =
+    projects.find((item) => item.id === projectId) ?? projects[0] ?? null;
+
   return (
     <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-white/7 bg-[#090d16] px-3 py-4 lg:flex">
       <div className="flex items-center gap-3 px-3 py-2">
@@ -61,6 +75,43 @@ export function Sidebar({
           </p>
           <p className="truncate text-[10px] text-slate-500">{user.email}</p>
         </div>
+      </div>
+
+      <div className="mt-4 space-y-2 px-1">
+        <div className="flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+          <FolderKanban className="size-3" />
+          Project / Space
+        </div>
+        <label className="block px-1">
+          <span className="sr-only">Project</span>
+          <select
+            className="w-full rounded-lg border border-white/8 bg-[#0f1522] px-2.5 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400/40"
+            value={activeProject?.id ?? ""}
+            onChange={(event) => onSelectProject(event.target.value)}
+            disabled={projects.length === 0}
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block px-1">
+          <span className="sr-only">Knowledge space</span>
+          <select
+            className="w-full rounded-lg border border-white/8 bg-[#0f1522] px-2.5 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400/40"
+            value={spaceId ?? ""}
+            onChange={(event) => onSelectSpace(event.target.value)}
+            disabled={!activeProject?.spaces.length}
+          >
+            {(activeProject?.spaces ?? []).map((space) => (
+              <option key={space.id} value={space.id}>
+                {space.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <nav className="mt-6 space-y-1">
@@ -94,7 +145,7 @@ export function Sidebar({
             Signed in as {user.display_name}
           </div>
           <p className="mt-1.5 text-[10px] leading-4 text-slate-600">
-            One screen at a time — switch views in the sidebar.
+            Knowledge is isolated per project space.
           </p>
         </div>
         <button

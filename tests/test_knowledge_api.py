@@ -1,14 +1,15 @@
 """Knowledge HTTP contract tests."""
 
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from tests.auth_helpers import authenticated_client
 
 from app.api.v1.knowledge import get_knowledge_service
 from app.main import app
 from app.services.knowledge import IndexedDocument
+from tests.auth_helpers import authenticated_client
 
 
 class FakeKnowledgeService:
@@ -59,15 +60,19 @@ def test_list_documents_contract() -> None:
 
 def test_upload_document_contract() -> None:
     workspace_id = uuid4()
+    space_id = uuid4()
     app.dependency_overrides[get_knowledge_service] = FakeKnowledgeService
     try:
         with authenticated_client("app.api.v1.knowledge"):
-            with TestClient(app) as client:
-                response = client.post(
-                    "/api/v1/knowledge/documents",
-                    data={"workspace_id": str(workspace_id)},
-                    files={"file": ("notes.txt", b"Knowledge", "text/plain")},
-                )
+            with patch("app.api.v1.knowledge.ProjectService") as cls:
+                projects = cls.return_value
+                projects.default_space_id = AsyncMock(return_value=space_id)
+                with TestClient(app) as client:
+                    response = client.post(
+                        "/api/v1/knowledge/documents",
+                        data={"workspace_id": str(workspace_id)},
+                        files={"file": ("notes.txt", b"Knowledge", "text/plain")},
+                    )
     finally:
         app.dependency_overrides.pop(get_knowledge_service, None)
 

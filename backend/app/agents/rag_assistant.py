@@ -14,6 +14,7 @@ class RagAssistantAgent:
         *,
         workspace_id: str,
         question: str,
+        space_id: str | None = None,
         chat_context: list[dict[str, str]] | None = None,
         workspace_notes: list[str] | None = None,
     ) -> RagAssistantResult:
@@ -22,6 +23,7 @@ class RagAssistantAgent:
         return await self.workflow.invoke(
             workspace_id=workspace_id,
             question=question,
+            space_id=space_id,
             chat_context=chat_context,
             workspace_notes=workspace_notes,
         )

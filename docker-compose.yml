@@ -34,6 +34,28 @@ services:
         condition: service_healthy
     restart: "no"
 
+  worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    env_file:
+      - .env
+    environment:
+      EMBEDDING_SERVICE_URL: http://embeddings:8001
+    command: ["python", "-m", "app.workers.launch_strategy"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      embeddings:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+
   embeddings:
     build:
       context: .

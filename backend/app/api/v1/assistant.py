@@ -28,14 +28,17 @@ from app.schemas.assistant import (
 )
 from app.services.llm import OpenRouterConfigurationError
 from app.services.memory import ConversationNotFound, MemoryService
+from app.services.projects import ProjectService, SpaceNotFound
 from app.workflows.rag_assistant import RagAssistant
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
 
-async def get_rag_assistant() -> AsyncIterator[RagAssistantAgent]:
-    """Create and close the request-scoped OpenRouter client."""
+async def get_rag_assistant(
+    _user: Annotated[User, Depends(get_current_user)],
+) -> AsyncIterator[RagAssistantAgent]:
+    """Create and close the request-scoped OpenRouter client after auth."""
 
     try:
         workflow = RagAssistant(retriever)
@@ -66,21 +69,37 @@ async def query_assistant(
     await require_workspace_access(
         session, user_id=user.id, workspace_id=payload.workspace_id
     )
+    projects = ProjectService(session)
+    try:
+        if payload.space_id is None:
+            space_id = await projects.default_space_id(
+                workspace_id=payload.workspace_id, user_id=user.id
+            )
+        else:
+            await projects.require_space(
+                space_id=payload.space_id, workspace_id=payload.workspace_id
+            )
+            space_id = payload.space_id
+    except SpaceNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     memory = MemoryAgent(memory_service)
     try:
         conversation = await memory_service.get_or_create_conversation(
             workspace_id=payload.workspace_id,
+            space_id=space_id,
             user_id=user.id,
             conversation_id=payload.conversation_id,
             title_seed=payload.question,
         )
         chat_turns, notes = await memory.load_for_assistant(
             workspace_id=payload.workspace_id,
+            space_id=space_id,
             conversation_id=conversation.id,
         )
-        # Exclude the turn we are about to ask — history is prior messages only.
         result = await agent.answer(
             workspace_id=str(payload.workspace_id),
+            space_id=str(space_id),
             question=payload.question,
             chat_context=[
                 {"role": turn.role, "content": turn.content} for turn in chat_turns
@@ -124,6 +143,7 @@ async def list_conversations(
     memory_service: Annotated[MemoryService, Depends(get_memory_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     user: Annotated[User, Depends(get_current_user)],
+    space_id: Annotated[UUID | None, Query()] = None,
 ) -> list[ConversationSummary]:
     await require_workspace_access(
         session, user_id=user.id, workspace_id=workspace_id
@@ -131,6 +151,7 @@ async def list_conversations(
     conversations = await memory_service.list_conversations(
         workspace_id=workspace_id,
         user_id=user.id,
+        space_id=space_id,
     )
     return [
         ConversationSummary(

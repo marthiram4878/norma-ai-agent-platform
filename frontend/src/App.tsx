@@ -16,14 +16,19 @@ import {
   type AuthSession,
   deleteDocument,
   getSession,
+  getWorkflowRun,
   listConversationMessages,
   listConversations,
   listDocuments,
+  listProjects,
+  listWorkflowRuns,
   type KnowledgeDocument,
+  type Project,
   logout,
   runLaunchStrategy,
-  uploadDocument,
   type WorkflowRun,
+  type WorkflowRunSummary,
+  uploadDocument,
 } from "./lib/api";
 
 function errorMessage(error: unknown): string {
@@ -36,24 +41,35 @@ export function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [booting, setBooting] = useState(true);
   const [view, setView] = useState<AppView>("assistant");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [spaceId, setSpaceId] = useState<string | null>(null);
   const [documentCache, setDocumentCache] = useState<{
-    workspaceId: string | null;
+    spaceId: string | null;
     documents: KnowledgeDocument[];
-  }>({ workspaceId: null, documents: [] });
+  }>({ spaceId: null, documents: [] });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [thinking, setThinking] = useState(false);
-  const [launchRunning, setLaunchRunning] = useState(false);
+  const [enqueueing, setEnqueueing] = useState(false);
   const [launchRun, setLaunchRun] = useState<WorkflowRun | null>(null);
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const workspace = session?.workspaces[0] ?? null;
   const workspaceId = workspace?.id ?? null;
+  const activeProject =
+    projects.find((item) => item.id === projectId) ?? projects[0] ?? null;
+  const activeSpace =
+    activeProject?.spaces.find((item) => item.id === spaceId) ??
+    activeProject?.spaces[0] ??
+    null;
+  const resolvedSpaceId = activeSpace?.id ?? null;
   const documents =
-    documentCache.workspaceId === workspaceId ? documentCache.documents : [];
+    documentCache.spaceId === resolvedSpaceId ? documentCache.documents : [];
   const loadingDocuments =
-    Boolean(workspaceId) && documentCache.workspaceId !== workspaceId;
+    Boolean(resolvedSpaceId) && documentCache.spaceId !== resolvedSpaceId;
 
   useEffect(() => {
     let active = true;
@@ -73,31 +89,58 @@ export function App() {
   }, []);
 
   const refreshDocuments = useCallback(async () => {
-    if (!workspaceId) return;
+    if (!workspaceId || !resolvedSpaceId) return;
     try {
-      const result = await listDocuments(workspaceId);
-      setDocumentCache({ workspaceId, documents: result });
+      const result = await listDocuments(workspaceId, resolvedSpaceId);
+      setDocumentCache({ spaceId: resolvedSpaceId, documents: result });
     } catch (requestError) {
       setError(errorMessage(requestError));
     }
+  }, [workspaceId, resolvedSpaceId]);
+
+  const refreshWorkflowRuns = useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const runs = await listWorkflowRuns(workspaceId, resolvedSpaceId);
+      setWorkflowRuns(runs);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    }
+  }, [workspaceId, resolvedSpaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    let active = true;
+    void listProjects(workspaceId)
+      .then((result) => {
+        if (!active) return;
+        setProjects(result);
+        const first = result[0];
+        setProjectId(first?.id ?? null);
+        setSpaceId(first?.spaces[0]?.id ?? null);
+      })
+      .catch((requestError: unknown) => {
+        if (active) setError(errorMessage(requestError));
+      });
+    return () => {
+      active = false;
+    };
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId) {
-      return;
-    }
+    if (!workspaceId || !resolvedSpaceId) return;
     let active = true;
-    void listDocuments(workspaceId)
+    void listDocuments(workspaceId, resolvedSpaceId)
       .then((result) => {
-        if (active) setDocumentCache({ workspaceId, documents: result });
+        if (active) setDocumentCache({ spaceId: resolvedSpaceId, documents: result });
       })
       .catch((requestError: unknown) => {
         if (!active) return;
         setError(errorMessage(requestError));
-        setDocumentCache({ workspaceId, documents: [] });
+        setDocumentCache({ spaceId: resolvedSpaceId, documents: [] });
       });
 
-    void listConversations(workspaceId)
+    void listConversations(workspaceId, resolvedSpaceId)
       .then(async (conversations) => {
         if (!active || conversations.length === 0) {
           if (active) {
@@ -123,17 +166,43 @@ export function App() {
         setConversationId(null);
       });
 
+    void refreshWorkflowRuns();
+
     return () => {
       active = false;
     };
-  }, [workspaceId]);
+  }, [workspaceId, resolvedSpaceId, refreshWorkflowRuns]);
+
+  useEffect(() => {
+    if (
+      !workspaceId ||
+      !launchRun ||
+      (launchRun.status !== "pending" && launchRun.status !== "running")
+    ) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void getWorkflowRun(workspaceId, launchRun.id)
+        .then((result) => {
+          setLaunchRun(result);
+          if (result.status === "completed" || result.status === "failed") {
+            void refreshWorkflowRuns();
+            if (result.status === "completed") void refreshDocuments();
+          }
+        })
+        .catch((requestError: unknown) => {
+          setError(errorMessage(requestError));
+        });
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [workspaceId, launchRun, refreshDocuments, refreshWorkflowRuns]);
 
   async function handleUpload(file: File) {
-    if (!workspaceId) return;
+    if (!workspaceId || !resolvedSpaceId) return;
     setUploading(true);
     setError(null);
     try {
-      await uploadDocument(workspaceId, file);
+      await uploadDocument(workspaceId, file, resolvedSpaceId);
       await refreshDocuments();
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -143,10 +212,10 @@ export function App() {
   }
 
   async function handleDelete(documentId: string) {
-    if (!workspaceId) return;
+    if (!workspaceId || !resolvedSpaceId) return;
     const snapshot = documentCache;
     setDocumentCache({
-      workspaceId,
+      spaceId: resolvedSpaceId,
       documents: documents.filter((document) => document.id !== documentId),
     });
     try {
@@ -158,7 +227,7 @@ export function App() {
   }
 
   async function handleSend(question: string) {
-    if (!workspaceId) return;
+    if (!workspaceId || !resolvedSpaceId) return;
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -173,6 +242,7 @@ export function App() {
         workspaceId,
         question,
         conversationId,
+        resolvedSpaceId,
       );
       setConversationId(response.conversation_id);
       setMessages((current) => [
@@ -201,22 +271,33 @@ export function App() {
     }
   }
 
-  async function handleLaunchStrategy(brief: string, productName?: string) {
+  async function handleEnqueue(brief: string, productName?: string) {
     if (!workspaceId) return;
-    setLaunchRunning(true);
+    setEnqueueing(true);
     setError(null);
     try {
       const result = await runLaunchStrategy({
         workspaceId,
         brief,
         productName,
+        spaceId: resolvedSpaceId,
       });
       setLaunchRun(result);
-      await refreshDocuments();
+      await refreshWorkflowRuns();
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
-      setLaunchRunning(false);
+      setEnqueueing(false);
+    }
+  }
+
+  async function handleSelectRun(runId: string) {
+    if (!workspaceId) return;
+    try {
+      const result = await getWorkflowRun(workspaceId, runId);
+      setLaunchRun(result);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
     }
   }
 
@@ -227,10 +308,14 @@ export function App() {
       // Clear local session even if the revoke request fails.
     }
     setSession(null);
-    setDocumentCache({ workspaceId: null, documents: [] });
+    setProjects([]);
+    setProjectId(null);
+    setSpaceId(null);
+    setDocumentCache({ spaceId: null, documents: [] });
     setMessages([]);
     setConversationId(null);
     setLaunchRun(null);
+    setWorkflowRuns([]);
     setView("assistant");
   }
 
@@ -261,8 +346,17 @@ export function App() {
       <Sidebar
         user={session.user}
         workspace={workspace}
+        projects={projects}
+        projectId={activeProject?.id ?? null}
+        spaceId={resolvedSpaceId}
         activeView={view}
         onNavigate={setView}
+        onSelectProject={(id) => {
+          setProjectId(id);
+          const project = projects.find((item) => item.id === id);
+          setSpaceId(project?.spaces[0]?.id ?? null);
+        }}
+        onSelectSpace={setSpaceId}
         onLogout={() => void handleLogout()}
       />
       {view === "assistant" && (
@@ -284,9 +378,11 @@ export function App() {
       )}
       {view === "workflows" && (
         <WorkflowsWorkspace
-          running={launchRunning}
-          run={launchRun}
-          onRun={handleLaunchStrategy}
+          runs={workflowRuns}
+          activeRun={launchRun}
+          enqueueing={enqueueing}
+          onEnqueue={handleEnqueue}
+          onSelectRun={handleSelectRun}
         />
       )}
       {view === "knowledge" && (

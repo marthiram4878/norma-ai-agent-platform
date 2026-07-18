@@ -15,6 +15,7 @@ class RagAssistantState(TypedDict):
     """Serializable state passed between graph nodes."""
 
     workspace_id: str
+    space_id: str
     question: str
     documents: list[RetrievedDocument]
     chat_context: list[dict[str, str]]
@@ -67,6 +68,7 @@ class RagAssistant:
             await self.retriever.retrieve(
                 state["question"],
                 workspace_id=state["workspace_id"],
+                space_id=state.get("space_id") or None,
                 limit=6,
             )
         )
@@ -148,6 +150,7 @@ class RagAssistant:
         *,
         workspace_id: str,
         question: str,
+        space_id: str | None = None,
         chat_context: list[dict[str, str]] | None = None,
         workspace_notes: list[str] | None = None,
     ) -> RagAssistantResult:
@@ -156,6 +159,7 @@ class RagAssistant:
         result = await self.graph.ainvoke(
             {
                 "workspace_id": workspace_id,
+                "space_id": space_id or "",
                 "question": question,
                 "documents": [],
                 "chat_context": chat_context or [],

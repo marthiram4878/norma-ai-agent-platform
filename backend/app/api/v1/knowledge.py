@@ -32,6 +32,7 @@ from app.services.knowledge import (
     KnowledgeIngestionError,
     KnowledgeService,
 )
+from app.services.projects import ProjectService, SpaceNotFound
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -50,13 +51,16 @@ async def list_documents(
     service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     user: Annotated[User, Depends(get_current_user)],
+    space_id: UUID | None = None,
 ) -> list[DocumentResponse]:
-    """List indexed documents for one workspace."""
+    """List indexed documents for one workspace/space."""
 
     await require_workspace_access(
         session, user_id=user.id, workspace_id=workspace_id
     )
-    documents = await service.list_documents(workspace_id=workspace_id)
+    documents = await service.list_documents(
+        workspace_id=workspace_id, space_id=space_id
+    )
     return [DocumentResponse.model_validate(document) for document in documents]
 
 
@@ -71,12 +75,28 @@ async def upload_document(
     service: Annotated[KnowledgeService, Depends(get_knowledge_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     user: Annotated[User, Depends(get_current_user)],
+    space_id: Annotated[UUID | None, Form()] = None,
 ) -> DocumentResponse:
     """Synchronously parse and index one bounded document."""
 
     await require_workspace_access(
         session, user_id=user.id, workspace_id=workspace_id
     )
+    projects = ProjectService(session)
+    try:
+        resolved_space = (
+            space_id
+            if space_id is not None
+            else await projects.default_space_id(
+                workspace_id=workspace_id, user_id=user.id
+            )
+        )
+        if space_id is not None:
+            await projects.require_space(
+                space_id=space_id, workspace_id=workspace_id
+            )
+    except SpaceNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     if not file.filename:
         raise HTTPException(status_code=422, detail="Filename is required")
     data = await file.read(settings.max_upload_size_bytes + 1)
@@ -86,6 +106,7 @@ async def upload_document(
     try:
         result = await service.ingest(
             workspace_id=workspace_id,
+            space_id=resolved_space,
             filename=file.filename,
             content_type=file.content_type or "application/octet-stream",
             data=data,
@@ -134,6 +155,7 @@ async def search_knowledge(
     results = await retriever.retrieve(
         payload.query,
         workspace_id=str(payload.workspace_id),
+        space_id=str(payload.space_id) if payload.space_id else None,
         limit=payload.limit,
     )
     return SearchResponse(

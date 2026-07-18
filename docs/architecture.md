@@ -36,13 +36,17 @@ temporary dependency outage into an application restart loop.
 
 Document metadata and extracted chunks are durable in PostgreSQL. Dense vectors
 and retrieval payloads are stored in Qdrant using cosine distance and are always
-filtered by `workspace_id`. BGE-M3 runs behind an HTTP boundary so API and
-embedding capacity can scale independently.
+filtered by `workspace_id` and `space_id`. BGE-M3 runs behind an HTTP boundary so
+API and embedding capacity can scale independently.
+
+Within a workspace, knowledge is further isolated by **projects** and
+**knowledge spaces**. Registration creates a default project (`My project`) and
+space (`Main`). Documents, conversations, workflow runs, and workspace memories
+carry a required `space_id`.
 
 The first ingestion path is synchronous and deliberately bounded by file,
-page, character, and batch limits. The application service boundary is retained
-so ingestion can move to a durable Redis-backed worker without changing API,
-parser, embedding, or vector-store contracts.
+page, character, and batch limits. Long-running Launch Strategy execution uses a
+Redis queue and a dedicated `worker` Compose service.
 
 ## First agent workflow
 
@@ -60,26 +64,28 @@ assistant.
 
 The second LangGraph workflow coordinates specialist agents for a launch brief:
 
-1. retrieve workspace context
-2. Research Agent synthesizes market and competitor notes
+1. retrieve space-scoped workspace context
+2. Research Agent synthesizes market and competitor notes (DuckDuckGo web
+   snippets when `WEB_SEARCH_ENABLED`, plus workspace context)
 3. Planning Agent drafts positioning, roadmap, and marketing outline
 4. Spec Agent drafts business model, financial outline, PRD, and tech TZ
 5. Content Agent drafts Cursor prompts plus LinkedIn and Telegram posts
 6. Execution Agent assembles one markdown pack and ingests it through
-   `KnowledgeService`
+   `KnowledgeService` into the run's knowledge space
 7. Memory Agent stores a short workflow summary in `workspace_memories`
 
-Runs and artifacts are persisted (`workflow_runs`, `workflow_artifacts`) for
-auditability. The pack becomes ordinary workspace knowledge, so the RAG
-assistant can cite it on later questions. Live web search and Redis workers
-remain deferred.
+`POST /workflows/launch-strategy` returns **202** with a `pending` run; the
+worker BRPOPs jobs from Redis, updates `current_step`, and clients poll
+`GET /workflows/runs/{id}`. Runs and artifacts are persisted for auditability.
+The pack becomes ordinary space knowledge, so the RAG assistant can cite it later.
 
 ## Conversation memory
 
 Assistant turns are stored in `conversations` / `conversation_messages`, scoped
-by workspace and user. Optional `conversation_id` continues a thread. Before
-generation, the RAG workflow receives recent chat turns and workspace memory
-notes as supporting (untrusted) context alongside retrieved chunks.
+by workspace, knowledge space, and user. Optional `conversation_id` continues a
+thread. Before generation, the RAG workflow receives recent chat turns and
+workspace memory notes as supporting (untrusted) context alongside retrieved
+chunks.
 
 ## Authentication
 
@@ -92,9 +98,10 @@ workspace enumeration.
 ## Frontend workspace
 
 The React client consumes only versioned API contracts. It restores the current
-session through `/auth/me`, lists and manages indexed documents for the user's
-first workspace, can trigger Launch Strategy runs, and renders assistant source
-metadata alongside each answer.
+session through `/auth/me`, switches project/space in the sidebar, lists and
+manages indexed documents for the selected space, shows Launch Strategy run
+history with polling, and renders assistant source metadata alongside each
+answer.
 
 ## Scaling path
 

@@ -19,12 +19,14 @@ class MemoryAgent:
         if action == "remember_workflow":
             memory = await self.service.remember_workflow_summary(
                 workspace_id=UUID(str(state["workspace_id"])),
+                space_id=UUID(str(state["space_id"])),
                 run_id=UUID(str(state["run_id"])),
                 summary_md=str(state["summary_md"]),
             )
             return {"memory_id": str(memory.id)}
 
         conversation_id = state.get("conversation_id")
+        space_id = state.get("space_id")
         chat: list[ChatTurn] = []
         if conversation_id:
             chat = await self.service.load_chat_context(
@@ -33,6 +35,7 @@ class MemoryAgent:
             )
         notes = await self.service.load_workspace_notes(
             workspace_id=UUID(str(state["workspace_id"])),
+            space_id=UUID(str(space_id)) if space_id else None,
             limit=int(state.get("notes_limit", 5)),
         )
         return {
@@ -46,6 +49,7 @@ class MemoryAgent:
         self,
         *,
         workspace_id: UUID,
+        space_id: UUID,
         conversation_id: UUID | None,
     ) -> tuple[list[ChatTurn], list[str]]:
         chat: list[ChatTurn] = []
@@ -53,5 +57,7 @@ class MemoryAgent:
             chat = await self.service.load_chat_context(
                 conversation_id=conversation_id
             )
-        notes = await self.service.load_workspace_notes(workspace_id=workspace_id)
+        notes = await self.service.load_workspace_notes(
+            workspace_id=workspace_id, space_id=space_id
+        )
         return chat, notes

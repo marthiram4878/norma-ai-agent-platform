@@ -539,8 +539,8 @@ Status: Foundation Ready
 
 - [x] React knowledge and assistant workspace
 - [x] Authentication
-- [ ] User projects
-- [ ] Knowledge spaces
+- [x] User projects
+- [x] Knowledge spaces
 
 
 ---

